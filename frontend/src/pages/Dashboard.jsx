@@ -1,0 +1,250 @@
+import React, { useEffect, useState } from "react";
+import api from "../lib/api";
+import { useAuth } from "../context/AuthContext";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Trophy, Plus, LogOut, Search, Download, Pencil, Trash2, Image as ImageIcon, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt } from "lucide-react";
+import { toast } from "sonner";
+import CardFormModal from "../components/CardFormModal";
+import StatCard from "../components/StatCard";
+import CollectionCard from "../components/CollectionCard";
+
+const EMPTY_BG = "https://images.unsplash.com/photo-1698239345711-67b1fabd645b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXJkJTIwYmFzZWJhbGx8ZW58MHx8fHwxNzc3Njc4Njc3fDA&ixlib=rb-4.1.0&q=85";
+
+export default function Dashboard() {
+  const { user, logout } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadStats = async () => {
+    try {
+      const r = await api.get("/cards/stats");
+      setStats(r.data);
+    } catch (e) { /* noop */ }
+  };
+
+  const loadCards = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (q) params.q = q;
+      if (statusFilter !== "all") params.status = statusFilter;
+      if (yearFilter) params.year = yearFilter;
+      const r = await api.get("/cards", { params });
+      setCards(r.data);
+    } catch (e) {
+      toast.error("Failed to load cards");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadStats(); }, [cards.length]);
+  useEffect(() => {
+    const t = setTimeout(loadCards, 250);
+    return () => clearTimeout(t);
+  }, [q, statusFilter, yearFilter]);
+
+  const onSave = async (form, file) => {
+    try {
+      let saved;
+      if (editing) {
+        const r = await api.put(`/cards/${editing.id}`, form);
+        saved = r.data;
+      } else {
+        const r = await api.post("/cards", form);
+        saved = r.data;
+      }
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        await api.post(`/cards/${saved.id}/image`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      }
+      toast.success(editing ? "Card updated" : "Card added");
+      setModalOpen(false);
+      setEditing(null);
+      loadCards();
+      loadStats();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Save failed");
+    }
+  };
+
+  const onDelete = async (card) => {
+    if (!window.confirm(`Delete ${card.name}?`)) return;
+    try {
+      await api.delete(`/cards/${card.id}`);
+      toast.success("Card deleted");
+      loadCards();
+      loadStats();
+    } catch (e) {
+      toast.error("Delete failed");
+    }
+  };
+
+  const onExport = async () => {
+    try {
+      const token = localStorage.getItem("cv_token");
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/cards/export.csv`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "cards.csv"; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error("Export failed");
+    }
+  };
+
+  const profitPositive = (stats?.profit ?? 0) >= 0;
+
+  return (
+    <div className="min-h-screen bg-[#0A0A0A] bg-grain">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-black/60 backdrop-blur-xl border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-9 rounded-md bg-[#FF3B30] grid place-items-center">
+              <Trophy className="h-4 w-4 text-white" strokeWidth={2.5} />
+            </div>
+            <span className="font-display text-xl tracking-tight font-black uppercase">CardVault</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-sm text-neutral-400">
+              {user?.picture && <img src={user.picture} alt="" className="h-7 w-7 rounded-full" />}
+              <span data-testid="user-name">{user?.name}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={logout} className="text-neutral-400 hover:text-white hover:bg-white/5" data-testid="logout-button">
+              <LogOut className="h-4 w-4 mr-1" /> Logout
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 py-8 lg:py-12 relative z-10">
+        {/* Title row */}
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+          <div>
+            <div className="text-xs tracking-[0.3em] uppercase text-neutral-500 font-semibold">Your collection</div>
+            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black uppercase mt-1">
+              The Vault
+            </h1>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={onExport} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="export-csv-button">
+              <Download className="h-4 w-4 mr-2" /> Export CSV
+            </Button>
+            <Button onClick={() => { setEditing(null); setModalOpen(true); }} className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid="add-card-button">
+              <Plus className="h-4 w-4 mr-2" /> Add Card
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <StatCard
+            label="Total Paid"
+            value={`$${(stats?.total_paid ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            icon={<Wallet className="h-4 w-4" />}
+            sub={`${stats?.total_cards ?? 0} cards`}
+            testId="total-paid-metric"
+          />
+          <StatCard
+            label="Total Sales"
+            value={`$${(stats?.total_sales ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            icon={<ShoppingBag className="h-4 w-4" />}
+            sub={`${stats?.sold_count ?? 0} sold`}
+            testId="total-sales-metric"
+          />
+          <StatCard
+            label="Total Expenses"
+            value={`$${(stats?.total_expenses ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            icon={<Receipt className="h-4 w-4" />}
+            sub="Shipping, fees…"
+            testId="total-expenses-metric"
+          />
+          <StatCard
+            label="Net Profit"
+            value={`${profitPositive ? "+" : "−"}$${Math.abs(stats?.profit ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            icon={profitPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+            sub="On sold cards"
+            highlight={profitPositive ? "green" : "red"}
+            testId="total-profit-metric"
+          />
+        </div>
+
+        {/* Search & filters */}
+        <div className="flex flex-col md:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name…" className="pl-9 bg-[#141414] border-white/10" data-testid="search-cards-input" />
+          </div>
+          <Input
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="Year"
+            className="w-full md:w-32 bg-[#141414] border-white/10"
+            data-testid="filter-year-input"
+          />
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full md:w-44 bg-[#141414] border-white/10" data-testid="filter-status-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-[#141414] border-white/10 text-white">
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="in_collection">In Collection</SelectItem>
+              <SelectItem value="sold">Sold</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Cards grid */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-72 rounded-lg bg-[#141414] border border-white/10 animate-pulse" />
+            ))}
+          </div>
+        ) : cards.length === 0 ? (
+          <div className="rounded-lg border border-white/10 bg-[#141414] p-10 text-center" data-testid="empty-state">
+            <div className="mx-auto w-40 h-40 rounded-full overflow-hidden mb-6 ring-1 ring-white/10">
+              <img src={EMPTY_BG} alt="" className="w-full h-full object-cover opacity-70" />
+            </div>
+            <h3 className="font-display text-2xl tracking-tight font-bold uppercase">Your vault is empty</h3>
+            <p className="text-neutral-400 text-sm mt-2 max-w-md mx-auto">Add your first card to start tracking purchases, sales, and profits.</p>
+            <Button onClick={() => { setEditing(null); setModalOpen(true); }} className="mt-5 bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid="empty-add-card-button">
+              <Plus className="h-4 w-4 mr-2" /> Add your first card
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8" data-testid="cards-grid">
+            {cards.map((c) => (
+              <CollectionCard
+                key={c.id}
+                card={c}
+                onEdit={() => { setEditing(c); setModalOpen(true); }}
+                onDelete={() => onDelete(c)}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      <CardFormModal
+        open={modalOpen}
+        onClose={() => { setModalOpen(false); setEditing(null); }}
+        onSave={onSave}
+        card={editing}
+      />
+    </div>
+  );
+}
