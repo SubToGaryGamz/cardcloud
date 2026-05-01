@@ -1,0 +1,114 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 2 (The Performance Pro) combined with Archetype 5 (Jewel & Luxury)",
+  "design_philosophy": "A modern, dark, sporty control center for sports card investors. High-visibility 'Tactical' look mixed with premium collector aesthetics. Deep blacks, crisp white data, and neon kinetic accents to signify performance and value.",
+  "typography": {
+    "headings": {
+      "family": "Barlow Condensed",
+      "import_url": "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;800;900&display=swap",
+      "rules": "Must use tight letter spacing (tracking-tight) for athletic weight. Black or ExtraBold weight for H1/H2."
+    },
+    "body": {
+      "family": "DM Sans",
+      "import_url": "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;700&display=swap",
+      "rules": "Increased tracking for legibility in data tables. Clean geometric sans for stats."
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black uppercase",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold uppercase",
+      "h3": "text-xl sm:text-2xl font-bold uppercase",
+      "h4": "text-lg sm:text-xl font-bold",
+      "body": "text-sm md:text-base text-neutral-300",
+      "labels": "text-xs tracking-[0.2em] uppercase text-neutral-500 font-semibold"
+    }
+  },
+  "color_palette": {
+    "background": {
+      "primary": "#0A0A0A",
+      "secondary": "#141414"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A3A3A3",
+      "muted": "#737373"
+    },
+    "accent": {
+      "primary": "#FF3B30",
+      "secondary": "#007AFF",
+      "success": "#34C759"
+    },
+    "border": {
+      "default": "rgba(255,255,255,0.1)",
+      "hover": "rgba(255,255,255,0.2)"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Dense 'Control Room' for the dashboard stats, 'Bento Grid' for the card collection.",
+    "container_padding": "p-6 md:p-8 lg:p-12",
+    "dashboard_grid": "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4",
+    "collection_grid": "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8",
+    "card_radius": "rounded-lg",
+    "button_radius": "rounded-md"
+  },
+  "surface_strategies": {
+    "headers": "Crystal Glass: bg-black/60 backdrop-blur-xl border-b border-white/10",
+    "dashboard_cards": "Flat background (#141414), 1px solid border-white/10. Hover: -translate-y-1 shadow-[0_8px_30px_rgba(255,59,48,0.15)] border-white/20 transition-all duration-300.",
+    "modals": "Solid #141414 background, border-white/10, heavy shadow-2xl."
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#FF3B30] text-white hover:bg-[#FF3B30]/90 font-bold uppercase tracking-wide",
+      "secondary": "bg-transparent border border-white/20 text-white hover:bg-white/5",
+      "status_badge_in_collection": "bg-[#007AFF]/10 text-[#007AFF] border border-[#007AFF]/20 text-xs px-2 py-1 uppercase tracking-wider",
+      "status_badge_sold": "bg-[#34C759]/10 text-[#34C759] border border-[#34C759]/20 text-xs px-2 py-1 uppercase tracking-wider"
+    },
+    "inputs": "bg-[#0A0A0A] border-white/10 text-white focus:ring-1 focus:ring-[#FF3B30] focus:border-[#FF3B30]",
+    "shadcn_customizations": "Remove excessive rounded corners (stick to md or sm). Ensure all dropdowns and modals use #141414 background to avoid white flash. Use pure HTML forms where Shadcn components are too complex to style."
+  },
+  "motion_interactions": {
+    "hover": "Subtle Y-axis translation (-translate-y-1) and increased border opacity for cards.",
+    "transitions": "transition-all duration-200 ease-out",
+    "loading": "Use an electric blue or red glowing skeleton loader rather than standard grey."
+  },
+  "media_urls": {
+    "login_hero_bg": {
+      "url": "https://images.unsplash.com/photo-1642692704112-80f6ba7f6aa3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwyfHxiYXNrZXRiYWxsJTIwY2FyZHxlbnwwfHx8fDE3Nzc2Nzg2Nzd8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Person holding a basketball card in hand against dark background",
+      "usage": "Use as full-screen background image for the Login/Signup page with a bg-black/50 overlay to ensure text readability."
+    },
+    "empty_state_image": {
+      "url": "https://images.unsplash.com/photo-1698239345711-67b1fabd645b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXJkJTIwYmFzZWJhbGx8ZW58MHx8fHwxNzc3Njc4Njc3fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Baseball glove and baseballs",
+      "usage": "Use as a placeholder visual when the user's collection is completely empty."
+    }
+  },
+  "data_testid_conventions": {
+    "rule": "Kebab-case, role-based, mandatory on all interactive elements.",
+    "examples": [
+      "login-email-input",
+      "login-submit-button",
+      "google-login-button",
+      "add-card-button",
+      "card-item-[id]",
+      "export-csv-button",
+      "search-cards-input",
+      "filter-status-select",
+      "total-profit-metric"
+    ]
+  },
+  "icons": {
+    "library": "lucide-react",
+    "instructions": "Use Lucide React for all icons. Size 16-20px for labels, 24px for key actions. Stroke width 2px."
+  },
+  "instructions_to_main_agent": [
+    "Ensure global dark mode by setting 'dark' class on the HTML element or configuring Tailwind config to dark: 'class' and enforcing it.",
+    "Apply Barlow Condensed for all Headers (H1-H4) and DM Sans for Body. Ensure they are imported via Google Fonts in the global CSS or index.html.",
+    "Use Shadcn UI for Table, Dialog (Modals), Forms, and Dropdowns, but strictly override their default background colors to match #0A0A0A and #141414. Do NOT use default light mode shades.",
+    "Login Page: Use a modern bento layout or a split screen: left side is the login form, right side is the login_hero_bg image spanning full height with an overlay.",
+    "Dashboard Cards (Metrics): Must clearly show Total Sales, Total Paid, Total Expenses, and Net Profit. Net Profit should highlight in success green (#34C759) if positive, or red (#FF3B30) if negative.",
+    "Card Collection: Use a grid layout. Each card should show the image (if uploaded, else a sleek dark placeholder), name, year, price paid, and a badge for 'In Collection' or 'Sold'.",
+    "Authentication: Implement both JWT (Email/Password) and a Google Login button on the UI.",
+    "Image Upload: Ensure the Add/Edit form includes a file input or drop zone for card images.",
+    "Testing: Add data-testid attributes to ALL form inputs, buttons, and individual card wrappers."
+  ]
+}
