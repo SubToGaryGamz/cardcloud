@@ -33,7 +33,7 @@ STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 # When more than one code is needed, use a comma-separated list e.g. BETA_INVITE_CODES="beta,founder,vip".
 BETA_INVITE_CODES = {
     c.strip().lower()
-    for c in os.environ.get('BETA_INVITE_CODES', 'beta').split(',')
+    for c in os.environ.get('BETA_INVITE_CODES', 'bet@').split(',')
     if c.strip()
 }
 BETA_DAYS = int(os.environ.get('BETA_DAYS', '90'))
