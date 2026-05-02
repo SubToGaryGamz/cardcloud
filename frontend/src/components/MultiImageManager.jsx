@@ -23,7 +23,7 @@ export default function MultiImageManager({ card, onChange }) {
           const url = URL.createObjectURL(res.data);
           urls.push(url);
           if (!revoked) next[p] = url;
-        } catch (e) { /* noop */ }
+        } catch (e) { if (process.env.NODE_ENV !== "production") console.warn("multi-image load failed", e); }
       }
       if (!revoked) setPreviews(next);
     })();

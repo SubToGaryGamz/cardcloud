@@ -40,7 +40,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    try { await api.post("/auth/logout"); } catch (e) { /* noop */ }
+    try { await api.post("/auth/logout"); }
+    catch (e) { if (process.env.NODE_ENV !== "production") console.warn("logout endpoint failed", e); }
     localStorage.removeItem("cv_token");
     setUser(null);
   };

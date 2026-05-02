@@ -15,7 +15,7 @@ export default function BestFlipCard({ since = "all", refreshKey }) {
       try {
         const r = await api.get("/cards/best-flip", { params: { since } });
         if (active) setData(r.data);
-      } catch (e) { /* noop */ }
+      } catch (e) { if (process.env.NODE_ENV !== "production") console.warn("best-flip load failed", e); }
     })();
     return () => { active = false; };
   }, [since, refreshKey]);
@@ -31,7 +31,7 @@ export default function BestFlipCard({ since = "all", refreshKey }) {
         const res = await api.get(`/files/${card.image_path}`, { responseType: "blob" });
         url = URL.createObjectURL(res.data);
         if (!revoked) setImgUrl(url);
-      } catch (e) { /* noop */ }
+      } catch (e) { if (process.env.NODE_ENV !== "production") console.warn("best-flip image failed", e); }
     })();
     return () => { revoked = true; if (url) URL.revokeObjectURL(url); };
   }, [card?.image_path]);

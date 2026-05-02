@@ -16,7 +16,7 @@ export function BillingProvider({ children }) {
       setIsPro(!!r.data.is_pro);
       setProExpiresAt(r.data.pro_expires_at || null);
       setPackages(r.data.packages || {});
-    } catch (e) { /* unauth */ }
+    } catch (e) { if (process.env.NODE_ENV !== "production") console.warn("billing/me failed (likely unauth)", e); }
   }, []);
 
   useEffect(() => {

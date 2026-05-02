@@ -44,14 +44,14 @@ export default function Dashboard() {
     try {
       const r = await api.get("/cards/stats", { params: range === "all" ? {} : { since: range } });
       setStats(r.data);
-    } catch (e) { /* noop */ }
+    } catch (e) { if (process.env.NODE_ENV !== "production") console.warn("loadStats failed", e); }
   };
 
   const loadTags = async () => {
     try {
       const r = await api.get("/cards/tags");
       setTopTags(r.data || []);
-    } catch (e) { /* noop */ }
+    } catch (e) { if (process.env.NODE_ENV !== "production") console.warn("loadTags failed", e); }
   };
 
   const loadCards = async () => {
@@ -79,10 +79,11 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { loadStats(); loadTags(); }, [refreshKey, range]);
+  useEffect(() => { loadStats(); loadTags(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [refreshKey, range]);
   useEffect(() => {
     const t = setTimeout(loadCards, 250);
     return () => clearTimeout(t);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [q, statusFilter, yearFilter, sportFilter, tagFilter, refreshKey]);
 
   const bumpRefresh = () => setRefreshKey((k) => k + 1);

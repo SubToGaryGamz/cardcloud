@@ -29,7 +29,7 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
           const u = URL.createObjectURL(res.data);
           created.push(u);
           out.push(u);
-        } catch (e) { /* noop */ }
+        } catch (e) { if (process.env.NODE_ENV !== "production") console.warn("image load failed", e); }
       }
       if (!revoked) setUrls(out);
     })();
