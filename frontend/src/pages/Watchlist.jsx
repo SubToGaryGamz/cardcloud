@@ -7,7 +7,7 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
-import { Eye, Plus, Target, Trash2, Pencil, ShoppingBag, Tag as TagIcon, ExternalLink, Sparkles, Lock } from "lucide-react";
+import { Eye, Plus, Target, Trash2, Pencil, ShoppingBag, Tag as TagIcon, ExternalLink, Lock, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import TagInput from "../components/TagInput";
 import { SPORTS } from "../lib/sports";
@@ -176,7 +176,6 @@ export default function Watchlist() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [acquiring, setAcquiring] = useState(null);
-  const [estimating, setEstimating] = useState(null);
 
   const load = async () => {
     if (!isPro) { setLoading(false); return; }
@@ -217,19 +216,6 @@ export default function Watchlist() {
     return `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1`;
   };
 
-  const onEstimate = async (item) => {
-    setEstimating(item.id);
-    try {
-      const r = await api.post(`/watchlist/${item.id}/estimate`);
-      toast.success(`AI estimate: $${r.data.low.toFixed(0)}–$${r.data.high.toFixed(0)} (typical $${r.data.typical.toFixed(0)})`);
-      setItems((prev) => prev.map((it) => it.id === item.id ? { ...it, ai_estimate: r.data } : it));
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || "Estimate failed");
-    } finally {
-      setEstimating(null);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
       <SiteHeader />
@@ -245,10 +231,10 @@ export default function Watchlist() {
                 Hunt smarter.<br />Acquire faster.
               </h1>
               <p className="text-neutral-300 mt-4 text-base max-w-xl">
-                The Watchlist tracks every card you're chasing — with eBay sold-comp links and Claude-powered AI price estimates so you know what to pay before you bid.
+                The Watchlist tracks every card you're chasing — with one-click eBay sold-comp links and a one-tap Acquire flow that turns a target into a tracked card the second you score it.
               </p>
               <ul className="mt-6 space-y-2 text-sm text-neutral-200">
-                <li className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[#FFD60A]" /> AI price estimates (low / typical / high)</li>
+                <li className="flex items-center gap-2"><Eye className="h-4 w-4 text-[#FFD60A]" /> Save unlimited targets, with notes and target prices</li>
                 <li className="flex items-center gap-2"><ExternalLink className="h-4 w-4 text-[#FFD60A]" /> One-click eBay sold comps</li>
                 <li className="flex items-center gap-2"><ShoppingBag className="h-4 w-4 text-[#FFD60A]" /> Acquire flow turns a target into a tracked card in one tap</li>
               </ul>
@@ -327,19 +313,6 @@ export default function Watchlist() {
                 )}
                 {item.notes && <p className="text-xs text-neutral-400 mt-3 line-clamp-3 italic">“{item.notes}”</p>}
 
-                {item.ai_estimate && (
-                  <div className="mt-3 rounded-md border border-[#007AFF]/30 bg-[#007AFF]/5 p-2.5" data-testid={`ai-estimate-${item.id}`}>
-                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#4aa3ff] font-bold">
-                      <Sparkles className="h-3 w-3" /> AI estimate
-                    </div>
-                    <div className="mt-1 text-sm font-semibold text-white">
-                      ${Number(item.ai_estimate.low).toFixed(0)}–${Number(item.ai_estimate.high).toFixed(0)}
-                      <span className="text-neutral-400 font-normal"> · typical <span className="text-white">${Number(item.ai_estimate.typical).toFixed(0)}</span></span>
-                    </div>
-                    {item.ai_estimate.note && <div className="text-[11px] text-neutral-400 mt-1 line-clamp-2">{item.ai_estimate.note}</div>}
-                  </div>
-                )}
-
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a
                     href={ebayCompsUrl(item)}
@@ -350,14 +323,6 @@ export default function Watchlist() {
                   >
                     <ExternalLink className="h-2.5 w-2.5" /> View sold comps
                   </a>
-                  <button
-                    onClick={() => onEstimate(item)}
-                    disabled={estimating === item.id}
-                    className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider bg-[#007AFF]/10 hover:bg-[#007AFF]/20 text-[#4aa3ff] border border-[#007AFF]/30 px-2 py-1 rounded-sm font-semibold transition disabled:opacity-50"
-                    data-testid={`estimate-button-${item.id}`}
-                  >
-                    <Sparkles className="h-2.5 w-2.5" /> {estimating === item.id ? "Estimating…" : "AI estimate"}
-                  </button>
                 </div>
 
                 <div className="mt-auto pt-4 flex gap-2">

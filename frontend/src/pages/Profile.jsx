@@ -70,7 +70,7 @@ export default function Profile() {
   };
 
   const vaultToken = user?.public_vault_token || null;
-  const vaultUrl = vaultToken ? `${window.location.origin}/s/v/${vaultToken}` : "";
+  const vaultUrl = vaultToken ? `${window.location.origin}/api/share/v/${vaultToken}` : "";
 
   const toggleVault = async (enabled) => {
     try {
@@ -88,11 +88,11 @@ export default function Profile() {
     catch (e) { toast.error("Copy failed"); }
   };
 
-  const onSubscribe = async () => {
+  const onSubscribe = async (packageId = "pro_monthly") => {
     setSubscribing(true);
     try {
       const r = await api.post("/billing/checkout", {
-        package_id: "pro_monthly",
+        package_id: packageId,
         origin_url: window.location.origin,
       });
       if (r.data.url) {
@@ -109,6 +109,7 @@ export default function Profile() {
 
   const proExpiryText = proExpiresAt ? new Date(proExpiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
   const proPrice = packages?.pro_monthly?.amount ?? 6;
+  const yearlyPrice = packages?.pro_yearly?.amount ?? 65;
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
@@ -214,7 +215,7 @@ export default function Profile() {
                 </p>
               )}
               <ul className="mt-4 space-y-1.5 text-sm">
-                <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> Watchlist + AI price estimates</li>
+                <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> Watchlist + eBay sold-comp links</li>
                 <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> Unlimited tags per card</li>
                 <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> CSV import (bulk add)</li>
                 <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> CSV export (full backup)</li>
@@ -224,6 +225,9 @@ export default function Profile() {
             <div className="text-right shrink-0">
               <div className="font-display text-4xl sm:text-5xl tracking-tighter font-black text-white">${proPrice}</div>
               <div className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold">per month</div>
+              {!isPro && (
+                <div className="mt-2 text-[10px] uppercase tracking-widest text-[#FFCC00] font-bold">7-day free trial</div>
+              )}
             </div>
           </div>
 
@@ -238,14 +242,26 @@ export default function Profile() {
                 <span className="text-white font-semibold">cardcloud.app</span> in your browser to upgrade — your account stays in sync automatically.
               </div>
             ) : (
-              <Button
-                onClick={onSubscribe}
-                disabled={subscribing}
-                className="mt-5 bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide shadow-glow-red"
-                data-testid="subscribe-button"
-              >
-                <Sparkles className="h-4 w-4 mr-2" /> {subscribing ? "Redirecting…" : `Upgrade for $${proPrice}/mo`}
-              </Button>
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button
+                  onClick={() => onSubscribe("pro_monthly")}
+                  disabled={subscribing}
+                  className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide shadow-glow-red h-auto py-3 flex-col items-start gap-0.5"
+                  data-testid="subscribe-button"
+                >
+                  <span className="flex items-center gap-2 text-sm"><Sparkles className="h-4 w-4" /> Start 7-day free trial</span>
+                  <span className="text-[10px] uppercase tracking-widest opacity-80 font-semibold">Then ${proPrice}/mo · Cancel anytime</span>
+                </Button>
+                <Button
+                  onClick={() => onSubscribe("pro_yearly")}
+                  disabled={subscribing}
+                  className="bg-[#FFD60A] hover:bg-[#FFD60A]/90 text-black font-bold uppercase tracking-wide h-auto py-3 flex-col items-start gap-0.5"
+                  data-testid="subscribe-yearly-button"
+                >
+                  <span className="flex items-center gap-2 text-sm"><Sparkles className="h-4 w-4" /> Annual — ${yearlyPrice}/yr</span>
+                  <span className="text-[10px] uppercase tracking-widest opacity-80 font-semibold">Save ${(proPrice * 12 - yearlyPrice).toFixed(0)} · 1 month free</span>
+                </Button>
+              </div>
             )
           )}
         </div>

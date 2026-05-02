@@ -53,7 +53,7 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
         token = r.data.share_token;
         onShareChanged?.();
       }
-      const link = `${window.location.origin}/s/c/${token}`;
+      const link = `${window.location.origin}/api/share/c/${token}`;
       await navigator.clipboard.writeText(link);
       toast.success("Share link copied");
     } catch (e) {

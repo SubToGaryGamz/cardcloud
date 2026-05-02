@@ -14,7 +14,7 @@ const FEATURES = [
   { icon: TagIcon, title: "Tag everything", body: "Player, team, set, parallel, rookie. Click any tag to instantly pull every matching card." },
   { icon: Trophy, title: "Best Flip tile", body: "The dashboard auto-surfaces your top-profit sale of the week, month, or all time." },
   { icon: BarChart3, title: "Charts that earn", body: "Profit over time, cards by year, sales pace. Spot what's moving and what's stuck." },
-  { icon: Eye, title: "Watchlist + AI estimates", body: "Track targets, view real eBay sold comps, and get a Claude-powered price range in one click." },
+  { icon: Eye, title: "Watchlist + sold comps", body: "Track targets you're hunting and jump to live eBay sold comps with one click. Acquire turns a target into a tracked card instantly." },
   { icon: Share2, title: "Public showcase", body: "Share a single card or your whole vault with a link. Cost basis stays private." },
 ];
 
@@ -26,6 +26,7 @@ const STEPS = [
 
 export default function Landing() {
   const { user } = useAuth();
+  const [yearlyOn, setYearlyOn] = React.useState(true);
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
@@ -210,14 +211,35 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-20 lg:py-28">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-[#FFD60A] font-bold border border-[#FFD60A]/30 bg-[#FFD60A]/10 px-3 py-1.5 rounded-full">
-              <Sparkles className="h-3 w-3" /> Pricing
+              <Sparkles className="h-3 w-3" /> Pricing · 7-day free trial
             </div>
             <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black uppercase leading-[0.95] mt-3">
               Start free.<br />Flip like a <span className="text-[#FFD60A]">Pro.</span>
             </h2>
             <p className="text-neutral-400 mt-4 text-base">
-              Track unlimited cards free, forever. Upgrade when you want power features like tax exports and CSV backups.
+              Track unlimited cards free, forever. Try every Pro feature for 7 days, no card required to start.
             </p>
+          </div>
+
+          {/* Billing toggle */}
+          <div className="mt-8 inline-flex items-center gap-2 p-1 rounded-full bg-[#141414] border border-white/10" data-testid="billing-toggle">
+            <button
+              type="button"
+              onClick={() => setYearlyOn(false)}
+              className={`px-4 py-1.5 rounded-full text-xs uppercase tracking-widest font-bold transition ${!yearlyOn ? "bg-white text-black" : "text-neutral-400 hover:text-white"}`}
+              data-testid="billing-toggle-monthly"
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setYearlyOn(true)}
+              className={`px-4 py-1.5 rounded-full text-xs uppercase tracking-widest font-bold transition flex items-center gap-1.5 ${yearlyOn ? "bg-white text-black" : "text-neutral-400 hover:text-white"}`}
+              data-testid="billing-toggle-yearly"
+            >
+              Yearly
+              <span className={`text-[9px] uppercase tracking-widest font-black px-1.5 py-0.5 rounded-sm ${yearlyOn ? "bg-[#34C759] text-black" : "bg-[#34C759]/20 text-[#34C759]"}`}>1 mo free</span>
+            </button>
           </div>
 
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6 max-w-4xl">
@@ -251,15 +273,29 @@ export default function Landing() {
               <div className="relative">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs tracking-[0.3em] uppercase text-[#FFD60A] font-bold">Pro</div>
-                  <span className="text-[10px] uppercase tracking-widest font-black bg-[#FFD60A] text-black px-2 py-0.5 rounded-sm">Best value</span>
+                  <span className="text-[10px] uppercase tracking-widest font-black bg-[#FFD60A] text-black px-2 py-0.5 rounded-sm">{yearlyOn ? "Save $7/yr" : "Best value"}</span>
                 </div>
                 <div className="mt-3 flex items-baseline gap-1.5">
-                  <span className="font-display text-5xl sm:text-6xl font-black tracking-tighter">$6</span>
-                  <span className="text-neutral-500 text-sm uppercase tracking-widest font-bold">/month</span>
+                  {yearlyOn ? (
+                    <>
+                      <span className="font-display text-5xl sm:text-6xl font-black tracking-tighter">$65</span>
+                      <span className="text-neutral-500 text-sm uppercase tracking-widest font-bold">/year</span>
+                      <span className="ml-2 text-neutral-500 line-through text-sm font-semibold">$72</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-display text-5xl sm:text-6xl font-black tracking-tighter">$6</span>
+                      <span className="text-neutral-500 text-sm uppercase tracking-widest font-bold">/month</span>
+                    </>
+                  )}
                 </div>
-                <p className="text-neutral-300 text-sm mt-3">Everything in Starter, plus power tools built for serious flippers.</p>
+                <p className="text-neutral-300 text-sm mt-3">
+                  {yearlyOn
+                    ? "12 months of Pro for the price of 11 — that's 1 month free, every year."
+                    : "Try free for 7 days. Cancel anytime."}
+                </p>
                 <ul className="mt-6 space-y-2.5 text-sm text-neutral-200">
-                  <li className="flex items-center gap-2"><Eye className="h-4 w-4 text-[#FFD60A] shrink-0" /> Watchlist + AI price estimates (Claude)</li>
+                  <li className="flex items-center gap-2"><Eye className="h-4 w-4 text-[#FFD60A] shrink-0" /> Watchlist + eBay sold-comp links</li>
                   <li className="flex items-center gap-2"><TagIcon className="h-4 w-4 text-[#FFD60A] shrink-0" /> Unlimited tags per card</li>
                   <li className="flex items-center gap-2"><Upload className="h-4 w-4 text-[#FFD60A] shrink-0" /> CSV import — bulk-add hundreds of cards</li>
                   <li className="flex items-center gap-2"><Download className="h-4 w-4 text-[#FFD60A] shrink-0" /> CSV export — full backup, anytime</li>
@@ -271,7 +307,7 @@ export default function Landing() {
                   className="mt-8 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide transition shadow-glow-red"
                   data-testid="pricing-pro-cta"
                 >
-                  <Sparkles className="h-4 w-4" /> {user ? "Upgrade to Pro" : "Get Pro — $6/mo"}
+                  <Sparkles className="h-4 w-4" /> {user ? "Upgrade to Pro" : (yearlyOn ? "Start free trial · Then $65/yr" : "Start 7-day free trial")}
                 </Link>
                 <div className="text-[11px] text-neutral-500 mt-3 uppercase tracking-widest">
                   Secure checkout via Stripe · No card needed to start free

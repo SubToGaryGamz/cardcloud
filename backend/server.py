@@ -31,8 +31,12 @@ STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 
 # Server-side fixed packages (NEVER take amount from frontend)
 PACKAGES = {
-    "pro_monthly": {"amount": 6.00, "currency": "usd", "label": "CardCloud Pro · Monthly"},
+    "pro_monthly": {"amount": 6.00, "currency": "usd", "label": "CardCloud Pro · Monthly", "interval": "monthly"},
+    "pro_yearly": {"amount": 65.00, "currency": "usd", "label": "CardCloud Pro · Yearly", "interval": "yearly"},
 }
+
+# 7-day free trial (in days) for first-time subscribers
+TRIAL_DAYS = 7
 
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 EMERGENT_AUTH_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
@@ -1113,67 +1117,114 @@ async def public_image(token: str, path: str):
     return Response(content=data, media_type=record.get("content_type") or content_type)
 
 
-# ============ AI Price Estimation ============
-@api_router.post("/watchlist/{item_id}/estimate")
-async def estimate_price(item_id: str, user: User = Depends(get_current_user)):
-    await _require_pro(user)
-    item = await db.watchlist.find_one({"id": item_id, "user_id": user.user_id}, {"_id": 0})
-    if not item:
-        raise HTTPException(status_code=404, detail="Watchlist item not found")
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM unavailable: {e}")
+# ============ AI Price Estimation (REMOVED) ============
+# The /watchlist/{item_id}/estimate endpoint was removed in favor of pure
+# eBay sold-comp links. No external LLM calls are made for price guesses.
 
-    prompt = (
-        "You are a sports-trading-card market expert. Based ONLY on the card info below, "
-        "estimate a realistic current secondary-market price range (USD) for this card in typical "
-        "near-mint ungraded condition. Respond with ONLY a compact JSON object with keys: "
-        "low (number), high (number), typical (number), note (short string, max 220 chars). "
-        "No commentary, no code fences, no trailing text."
-        f"\n\nCard:\nYear: {item.get('year')}\nName: {item.get('name')}\n"
-        f"Sport: {item.get('sport') or 'Unknown'}\nTags: {', '.join(item.get('tags') or [])}\n"
-        f"Notes: {item.get('notes') or ''}"
-    )
-    try:
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"est-{user.user_id}-{item_id}",
-            system_message="You output only valid JSON. Never include markdown fences."
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-        reply = await chat.send_message(UserMessage(text=prompt))
-    except Exception as e:
-        logger.error(f"Estimate error: {e}")
-        raise HTTPException(status_code=502, detail="Estimation failed")
 
-    import json as _json
-    text = (reply or "").strip()
-    # Strip code fences if present
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:].strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1:
-        raise HTTPException(status_code=502, detail="Unexpected AI response")
-    try:
-        parsed = _json.loads(text[start:end + 1])
-    except Exception:
-        raise HTTPException(status_code=502, detail="Could not parse AI response")
+# ============ Social-share OG meta (server-rendered for crawlers) ============
+def _html_escape(s: str) -> str:
+    return (str(s or "")
+            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;").replace("'", "&#39;"))
 
-    result = {
-        "low": float(parsed.get("low") or 0),
-        "high": float(parsed.get("high") or 0),
-        "typical": float(parsed.get("typical") or 0),
-        "note": str(parsed.get("note") or "")[:240],
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
-    await db.watchlist.update_one(
-        {"id": item_id, "user_id": user.user_id},
-        {"$set": {"ai_estimate": result, "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    return result
+
+def _public_base_url(request: Request) -> str:
+    """Build the externally-reachable base URL from K8s ingress headers, falling
+    back to the raw request base_url if proxy headers aren't present.
+    """
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if host:
+        return f"{proto}://{host}".rstrip("/")
+    return str(request.base_url).rstrip("/")
+
+
+def _og_html(title: str, description: str, image_url: str, redirect_url: str, canonical: str) -> str:
+    """Render a tiny OG-rich HTML page that previews well in iMessage / Twitter
+    / Discord / Slack, then redirects real-browser visitors to the SPA route.
+    """
+    t = _html_escape(title)
+    d = _html_escape(description)
+    img = _html_escape(image_url) if image_url else ""
+    r = _html_escape(redirect_url)
+    c = _html_escape(canonical)
+    image_meta = (
+        f'<meta property="og:image" content="{img}" />\n'
+        f'<meta name="twitter:image" content="{img}" />'
+    ) if image_url else ""
+    body_img = f'<img src="{img}" alt="" />' if image_url else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{t}</title>
+<meta name="description" content="{d}" />
+<link rel="canonical" href="{c}" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="{t}" />
+<meta property="og:description" content="{d}" />
+{image_meta}
+<meta property="og:url" content="{c}" />
+<meta property="og:site_name" content="CardCloud" />
+<meta name="twitter:card" content="{'summary_large_image' if image_url else 'summary'}" />
+<meta name="twitter:title" content="{t}" />
+<meta name="twitter:description" content="{d}" />
+<meta http-equiv="refresh" content="0; url={r}" />
+<script>window.location.replace({r!r});</script>
+<style>html,body{{margin:0;background:#0A0A0A;color:#fff;font-family:-apple-system,system-ui,sans-serif}}.wrap{{min-height:100vh;display:grid;place-items:center;text-align:center;padding:32px}}img{{max-width:380px;width:100%;border-radius:12px}}a{{color:#FF8079}}</style>
+</head>
+<body>
+<div class="wrap">
+<div>
+{body_img}
+<h1 style="font-weight:900;letter-spacing:-0.02em;text-transform:uppercase;margin-top:24px">{t}</h1>
+<p style="opacity:.7">{d}</p>
+<p><a href="{r}">Open on CardCloud →</a></p>
+</div>
+</div>
+</body>
+</html>
+"""
+
+
+@api_router.get("/share/c/{token}")
+async def share_card_meta(request: Request, token: str):
+    card = await db.cards.find_one({"share_token": token}, {"_id": 0})
+    if not card:
+        raise HTTPException(status_code=404, detail="Not found")
+    base = _public_base_url(request)
+    img_path = card.get("image_path") or (card.get("images") or [None])[0]
+    image_url = f"{base}/api/public/image/{token}/{img_path}" if img_path else ""
+    title = f"{card.get('year') or ''} {card.get('name') or 'Card'}".strip()
+    sport = card.get("sport") or ""
+    tags = ", ".join((card.get("tags") or [])[:3])
+    desc_bits = [b for b in [sport, tags, "Tracked on CardCloud"] if b]
+    description = " · ".join(desc_bits)
+    redirect_url = f"/s/c/{token}"
+    canonical = f"{base}/api/share/c/{token}"
+    return Response(content=_og_html(title, description, image_url, redirect_url, canonical), media_type="text/html")
+
+
+@api_router.get("/share/v/{token}")
+async def share_vault_meta(request: Request, token: str):
+    owner = await db.users.find_one({"public_vault_token": token}, {"_id": 0, "password_hash": 0, "email": 0})
+    if not owner:
+        raise HTTPException(status_code=404, detail="Not found")
+    cards = await db.cards.find({"user_id": owner["user_id"]}, {"_id": 0, "image_path": 1, "images": 1, "name": 1}).to_list(20)
+    base = _public_base_url(request)
+    cover_path = None
+    for c in cards:
+        cover_path = c.get("image_path") or (c.get("images") or [None])[0]
+        if cover_path:
+            break
+    image_url = f"{base}/api/public/image/{token}/{cover_path}" if cover_path else ""
+    title = f"{owner.get('name') or 'Collector'}'s Vault"
+    description = f"{len(cards)} card{'s' if len(cards) != 1 else ''} · Tracked on CardCloud"
+    redirect_url = f"/s/v/{token}"
+    canonical = f"{base}/api/share/v/{token}"
+    return Response(content=_og_html(title, description, image_url, redirect_url, canonical), media_type="text/html")
 
 
 # ============ Billing (Stripe) ============
@@ -1307,10 +1358,11 @@ async def billing_status(session_id: str, http_request: Request, user: User = De
         }}
     )
     if new_status == "paid":
-        # Activate Pro for 31 days; idempotent because we check txn first
+        # Activate Pro: 31 days for monthly, 365 days for yearly. First-time
+        # subscribers get TRIAL_DAYS extra (the "1-month free" yearly upsell
+        # is already baked into the price, so we don't double-stack on yearly).
         existing = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
         base = datetime.now(timezone.utc)
-        # If already pro and not expired, extend from current expiry
         if existing and existing.get("pro_expires_at"):
             try:
                 cur = datetime.fromisoformat(existing["pro_expires_at"])
@@ -1320,10 +1372,15 @@ async def billing_status(session_id: str, http_request: Request, user: User = De
                     base = cur
             except Exception:
                 pass
-        new_exp = base + timedelta(days=31)
+        pkg = PACKAGES.get(txn.get("package_id") or "pro_monthly", PACKAGES["pro_monthly"])
+        days = 365 if pkg.get("interval") == "yearly" else 31
+        first_time = not (existing and existing.get("ever_pro"))
+        if first_time and pkg.get("interval") == "monthly":
+            days += TRIAL_DAYS
+        new_exp = base + timedelta(days=days)
         await db.users.update_one(
             {"user_id": user.user_id},
-            {"$set": {"is_pro": True, "pro_expires_at": new_exp.isoformat()}}
+            {"$set": {"is_pro": True, "pro_expires_at": new_exp.isoformat(), "ever_pro": True}}
         )
     return {"payment_status": new_status, "status": status.status, "is_pro": new_status == "paid"}
 
@@ -1347,6 +1404,7 @@ async def stripe_webhook(request: Request):
     # Note: status polling on success page handles activation; webhook is additional safety
     if ev and ev.payment_status == "paid" and ev.metadata and ev.metadata.get("user_id"):
         user_id = ev.metadata["user_id"]
+        package_id = ev.metadata.get("package_id") or "pro_monthly"
         await db.payment_transactions.update_one(
             {"session_id": ev.session_id},
             {"$set": {"payment_status": "paid", "updated_at": datetime.now(timezone.utc).isoformat()}}
@@ -1362,9 +1420,14 @@ async def stripe_webhook(request: Request):
                     base = cur
             except Exception:
                 pass
+        pkg = PACKAGES.get(package_id, PACKAGES["pro_monthly"])
+        days = 365 if pkg.get("interval") == "yearly" else 31
+        first_time = not (existing and existing.get("ever_pro"))
+        if first_time and pkg.get("interval") == "monthly":
+            days += TRIAL_DAYS
         await db.users.update_one(
             {"user_id": user_id},
-            {"$set": {"is_pro": True, "pro_expires_at": (base + timedelta(days=31)).isoformat()}}
+            {"$set": {"is_pro": True, "pro_expires_at": (base + timedelta(days=days)).isoformat(), "ever_pro": True}}
         )
     return {"ok": True}
 
