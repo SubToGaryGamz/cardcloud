@@ -47,7 +47,7 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 bg-black/60 backdrop-blur-xl border-b border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-4 flex items-center justify-between gap-3">
-        <Link to="/dashboard" className="flex items-center gap-2 shrink-0" data-testid="brand-logo">
+        <Link to="/" className="flex items-center gap-2 shrink-0" data-testid="brand-logo">
           <div className="relative h-9 w-9 rounded-md bg-gradient-to-br from-[#FF3B30] to-[#B3261E] grid place-items-center shadow-glow-red">
             <Cloud className="h-5 w-5 text-white" strokeWidth={2.5} fill="white" fillOpacity={0.15} />
           </div>
