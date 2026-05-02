@@ -38,7 +38,7 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 - Multi-user, isolated data
 
 ## Implemented (Feb 2026)
-- ✅ **Public Landing page at `/`** — hero, features grid, how-it-works, showcase callout, CTAs (auth-aware: "Get started" → "Open my vault")
+- ✅ **Public Landing page at `/`** — hero, features grid, how-it-works, **pricing section (Starter $0 vs Pro $6/mo)**, showcase callout, CTAs (auth-aware: "Get started" → "Open my vault")
 - ✅ JWT email/password auth + Emergent Google OAuth
 - ✅ Object storage for card images + user avatars
 - ✅ Cards CRUD + stats + CSV export/import
@@ -55,6 +55,11 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 - ✅ **Condition** (Raw/PSA/BGS/SGC/CGC/Other) + **Grade** (1.0–10.0)
 - ✅ **Best Flip of the Month** dashboard tile (red gradient, image + profit)
 - ✅ **Card tile button layout fixed**: Quick Sell full-width row + Edit/Share equal 50/50 row
+- ✅ **Stripe Pro tier ($6/mo)** with checkout, gating CSV import/export and IRS Form 8949 tax export
+- ✅ **Light/Dark theme toggle** in header
+- ✅ **Keyboard shortcuts**: n=new card, /=focus search, 1/2=jump to In Collection / Sold sections
+- ✅ **Pro upsell banner** on Vault dashboard (only shown to free users)
+- ✅ **Light-mode polish**: gradient stops (best flip card, sold tiles, image placeholders) properly themed for light mode
 
 ## Known Notes
 - EMERGENT_LLM_KEY has a small budget cap in dev. If AI estimates return 502, top up in Profile → Universal Key → Add Balance.

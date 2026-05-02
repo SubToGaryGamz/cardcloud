@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Cloud, Trophy, Tag as TagIcon, Eye, Share2, Sparkles,
   TrendingUp, Image as ImageIcon, ArrowRight, CheckCircle2,
-  Wallet, ShoppingBag, Zap, BarChart3,
+  Wallet, ShoppingBag, Zap, BarChart3, FileText, Download, Upload,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -41,6 +41,7 @@ export default function Landing() {
           <nav className="hidden md:flex items-center gap-6 text-sm font-semibold uppercase tracking-wider text-neutral-400">
             <a href="#features" className="hover:text-white transition" data-testid="nav-features">Features</a>
             <a href="#how" className="hover:text-white transition" data-testid="nav-how">How it works</a>
+            <a href="#pricing" className="hover:text-white transition" data-testid="nav-pricing">Pricing</a>
             <a href="#showcase" className="hover:text-white transition" data-testid="nav-showcase">Showcase</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -185,6 +186,82 @@ export default function Landing() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing / Pro */}
+      <section id="pricing" className="border-t border-white/10 bg-black/40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-20 lg:py-28">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-[#FFD60A] font-bold border border-[#FFD60A]/30 bg-[#FFD60A]/10 px-3 py-1.5 rounded-full">
+              <Sparkles className="h-3 w-3" /> Pricing
+            </div>
+            <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black uppercase leading-[0.95] mt-3">
+              Start free.<br />Flip like a <span className="text-[#FFD60A]">Pro.</span>
+            </h2>
+            <p className="text-neutral-400 mt-4 text-base">
+              Track unlimited cards free, forever. Upgrade when you want power features like tax exports and CSV backups.
+            </p>
+          </div>
+
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6 max-w-4xl">
+            {/* FREE */}
+            <div className="rounded-xl bg-[#141414] border border-white/10 p-7 sm:p-8 flex flex-col" data-testid="pricing-free">
+              <div className="text-xs tracking-[0.3em] uppercase text-neutral-500 font-bold">Starter</div>
+              <div className="mt-3 flex items-baseline gap-1.5">
+                <span className="font-display text-5xl sm:text-6xl font-black tracking-tighter">$0</span>
+                <span className="text-neutral-500 text-sm uppercase tracking-widest font-bold">/forever</span>
+              </div>
+              <p className="text-neutral-400 text-sm mt-3">Everything you need to track every flip.</p>
+              <ul className="mt-6 space-y-2.5 text-sm text-neutral-300">
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Unlimited cards</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Multi-image per card</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Watchlist + AI price estimates</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Charts, Best Flip, tags</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Public showcase links</li>
+              </ul>
+              <Link
+                to="/login"
+                className="mt-8 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md border border-white/15 hover:bg-white/5 text-white font-semibold uppercase tracking-wide transition"
+                data-testid="pricing-free-cta"
+              >
+                Start free <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            {/* PRO */}
+            <div className="relative rounded-xl bg-gradient-to-br from-[#FFD60A]/15 via-[#141414] to-[#141414] border border-[#FFD60A]/40 p-7 sm:p-8 flex flex-col shadow-glow-red overflow-hidden" data-testid="pricing-pro">
+              <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/3 h-44 w-44 rounded-full bg-[#FFD60A]/20 blur-3xl pointer-events-none" />
+              <div className="relative">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs tracking-[0.3em] uppercase text-[#FFD60A] font-bold">Pro</div>
+                  <span className="text-[10px] uppercase tracking-widest font-black bg-[#FFD60A] text-black px-2 py-0.5 rounded-sm">Best value</span>
+                </div>
+                <div className="mt-3 flex items-baseline gap-1.5">
+                  <span className="font-display text-5xl sm:text-6xl font-black tracking-tighter">$6</span>
+                  <span className="text-neutral-500 text-sm uppercase tracking-widest font-bold">/month</span>
+                </div>
+                <p className="text-neutral-300 text-sm mt-3">Everything in Starter, plus power tools built for serious flippers.</p>
+                <ul className="mt-6 space-y-2.5 text-sm text-neutral-200">
+                  <li className="flex items-center gap-2"><Upload className="h-4 w-4 text-[#FFD60A] shrink-0" /> CSV import — bulk-add hundreds of cards</li>
+                  <li className="flex items-center gap-2"><Download className="h-4 w-4 text-[#FFD60A] shrink-0" /> CSV export — full backup, anytime</li>
+                  <li className="flex items-center gap-2"><FileText className="h-4 w-4 text-[#FFD60A] shrink-0" /> IRS Form 8949 tax export (short/long term)</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Priority to new features</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Cancel anytime · no lock-in</li>
+                </ul>
+                <Link
+                  to={user ? "/profile" : "/login"}
+                  className="mt-8 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide transition shadow-glow-red"
+                  data-testid="pricing-pro-cta"
+                >
+                  <Sparkles className="h-4 w-4" /> {user ? "Upgrade to Pro" : "Get Pro — $6/mo"}
+                </Link>
+                <div className="text-[11px] text-neutral-500 mt-3 uppercase tracking-widest">
+                  Secure checkout via Stripe · No card needed to start free
+                </div>
+              </div>
             </div>
           </div>
         </div>

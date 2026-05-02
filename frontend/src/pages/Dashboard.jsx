@@ -3,7 +3,7 @@ import api from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock } from "lucide-react";
+import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import CardFormModal from "../components/CardFormModal";
 import StatCard from "../components/StatCard";
@@ -189,6 +189,41 @@ export default function Dashboard() {
       <SiteHeader />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 relative z-10">
+        {/* Pro upsell banner (free users only) */}
+        {!isPro && (
+          <div className="relative mb-6 rounded-xl bg-gradient-to-br from-[#FFD60A]/15 via-[#141414] to-[#141414] border border-[#FFD60A]/40 p-5 sm:p-6 overflow-hidden shadow-glow-red fade-up" data-testid="pro-upsell-banner">
+            <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/4 h-44 w-44 rounded-full bg-[#FFD60A]/20 blur-3xl pointer-events-none" />
+            <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+              <div className="flex items-start gap-4 min-w-0">
+                <div className="h-11 w-11 shrink-0 rounded-md bg-[#FFD60A] grid place-items-center">
+                  <Sparkles className="h-5 w-5 text-black" strokeWidth={2.5} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-[0.3em] font-black bg-[#FFD60A] text-black px-2 py-0.5 rounded-sm">Pro</span>
+                    <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-semibold">$6/month · cancel anytime</span>
+                  </div>
+                  <h3 className="font-display text-xl sm:text-2xl font-black uppercase tracking-tight mt-1 leading-tight">
+                    Unlock CSV imports, exports & IRS Form 8949
+                  </h3>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-300">
+                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> Bulk CSV import</li>
+                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> Full CSV export</li>
+                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> Tax-ready 8949 (short/long term)</li>
+                  </ul>
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate("/profile")}
+                className="shrink-0 bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide shadow-glow-red"
+                data-testid="pro-upsell-upgrade-button"
+              >
+                <Sparkles className="h-4 w-4 mr-2" /> Upgrade to Pro
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Title row */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
