@@ -1,4 +1,7 @@
-# CardVault — Sports Card Collection Tracker (PRD)
+# CardCloud — Sports Card Collection Tracker (PRD)
+
+## Brand
+Name: **CardCloud** (previously CardVault). Logo: Cloud icon over red gradient badge.
 
 ## Original Problem Statement
 Build me a website in which I can track my sports card collection. I want to be able to input
@@ -37,17 +40,20 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 ## Implemented (Feb 2026)
 - ✅ JWT email/password auth (register/login/me/logout)
 - ✅ Emergent Google OAuth flow with /auth/callback + AuthCallback handling location.hash
-- ✅ Object storage for card images, owner-scoped file access
-- ✅ Cards CRUD + stats + CSV export
-- ✅ Search/filter by name, year, status
+- ✅ Object storage for card images + user avatars, owner-scoped file access
+- ✅ Cards CRUD + stats + CSV export/import
+- ✅ Search/filter by name, year, status, sport, and tag; `q` searches name/tags/sport
 - ✅ Dashboard with 4 stat cards, color-coded profit
-- ✅ Bento card grid with image thumbnails, status badges, per-card profit
+- ✅ Bento card grid with image thumbnails, sport badges, tag chips, status badges, per-card profit
 - ✅ Dark sporty theme with Barlow Condensed + DM Sans
-- ✅ **Quick Sell** per-card action: one-tap flip to Sold with extra fees + date
-- ✅ **Purchased Date + Sold Date** fields on every card
-- ✅ **Time-range filter**: All / 30d / 90d / 1y (stats recompute)
-- ✅ **Charts**: Profit over time (area) + Cards by year (bar) via recharts
-- ✅ **Bulk CSV import**: same columns as export; parse, skip bad rows, toast
+- ✅ Quick Sell per-card action
+- ✅ Purchased/Sold date fields + time-range filter (All/30d/90d/1y)
+- ✅ Charts: profit-over-time (area) + cards-by-year (bar)
+- ✅ **Sport field** (Baseball, Basketball, Football, Hockey, Soccer, Golf, Tennis, Boxing/MMA, Wrestling, Racing, Pokemon, Other)
+- ✅ **Tags** (free-form, lowercase-normalized, click-to-filter, tag cloud, /cards/tags aggregation)
+- ✅ **Watchlist** page: target cards + notes + target price; one-click "Acquired" converts into a collection card
+- ✅ **User Profile** page with editable name + avatar upload
+- ✅ **CardCloud rebrand** with cloud logo + unified SiteHeader nav
 
 ## Backlog (Prioritised)
 - P1: User profile + avatar upload
