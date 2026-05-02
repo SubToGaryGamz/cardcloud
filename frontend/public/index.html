@@ -36,7 +36,7 @@
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
         <title>CardCloud — Track every sports card flip</title>
-        <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
+        <script>window.addEventListener("error",function(e){var msg=e&&(e.message||"");if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&msg.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault();return}if(typeof msg==="string"&&msg.indexOf("Failed to read the 'responseText' property from 'XMLHttpRequest'")!==-1){e.stopImmediatePropagation();e.preventDefault();return}},true);</script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
     </head>
     <body>
