@@ -5,19 +5,23 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
-import { Upload, Save, User as UserIcon, Share2, Copy, ExternalLink } from "lucide-react";
+import { Upload, Save, User as UserIcon, Share2, Copy, ExternalLink, Sparkles, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { useBilling } from "../context/BillingContext";
 
 export default function Profile() {
   const { user, refresh } = useAuth();
+  const { isPro, proExpiresAt, packages, refresh: refreshBilling } = useBilling();
   const [name, setName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => { if (user?.name) setName(user.name); }, [user?.name]);
+  useEffect(() => { refreshBilling(); }, [refreshBilling]);
 
   useEffect(() => {
     let revoked = false;
@@ -82,6 +86,28 @@ export default function Profile() {
     try { await navigator.clipboard.writeText(vaultUrl); toast.success("Link copied"); }
     catch (e) { toast.error("Copy failed"); }
   };
+
+  const onSubscribe = async () => {
+    setSubscribing(true);
+    try {
+      const r = await api.post("/billing/checkout", {
+        package_id: "pro_monthly",
+        origin_url: window.location.origin,
+      });
+      if (r.data.url) {
+        window.location.href = r.data.url;
+      } else {
+        toast.error("Could not start checkout");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Checkout failed");
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  const proExpiryText = proExpiresAt ? new Date(proExpiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
+  const proPrice = packages?.pro_monthly?.amount ?? 6;
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
@@ -165,6 +191,48 @@ export default function Profile() {
                 </Button>
               </div>
             </div>
+          )}
+        </div>
+
+        {/* Pro Subscription */}
+        <div className={`rounded-lg border mt-6 p-6 sm:p-8 fade-up ${isPro ? "bg-gradient-to-br from-[#FFD60A]/10 via-[#141414] to-[#141414] border-[#FFD60A]/30" : "bg-gradient-to-br from-[#FF3B30]/10 via-[#141414] to-[#141414] border-[#FF3B30]/30"}`} data-testid="pro-card">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-xs tracking-[0.3em] uppercase font-bold" style={{ color: isPro ? "#FFCC00" : "#FF8079" }}>
+                <Sparkles className="h-3.5 w-3.5" /> {isPro ? "Pro · Active" : "Upgrade"}
+              </div>
+              <h2 className="font-display text-2xl tracking-tight font-black uppercase mt-1">CardCloud Pro</h2>
+              {isPro ? (
+                <p className="text-neutral-400 text-sm mt-2">
+                  You're on Pro. CSV import/export and IRS Form 8949 tax export are unlocked.
+                  {proExpiryText && <> Renews on <span className="text-white font-semibold">{proExpiryText}</span>.</>}
+                </p>
+              ) : (
+                <p className="text-neutral-400 text-sm mt-2 max-w-md">
+                  Unlock CSV import, CSV export, and a one-click IRS Form 8949 tax export — short-term vs long-term, ready to drop into your filing.
+                </p>
+              )}
+              <ul className="mt-4 space-y-1.5 text-sm">
+                <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> CSV import (bulk add)</li>
+                <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> CSV export (full backup)</li>
+                <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> IRS Form 8949 tax export</li>
+              </ul>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="font-display text-4xl sm:text-5xl tracking-tighter font-black text-white">${proPrice}</div>
+              <div className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold">per month</div>
+            </div>
+          </div>
+
+          {!isPro && (
+            <Button
+              onClick={onSubscribe}
+              disabled={subscribing}
+              className="mt-5 bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide shadow-glow-red"
+              data-testid="subscribe-button"
+            >
+              <Sparkles className="h-4 w-4 mr-2" /> {subscribing ? "Redirecting…" : `Upgrade for $${proPrice}/mo`}
+            </Button>
           )}
         </div>
       </main>

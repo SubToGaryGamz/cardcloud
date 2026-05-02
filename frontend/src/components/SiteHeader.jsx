@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Cloud, LogOut, LayoutDashboard, Eye, User as UserIcon } from "lucide-react";
+import { Cloud, LogOut, LayoutDashboard, Eye, User as UserIcon, Sun, Moon, Sparkles } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
+import { useBilling } from "../context/BillingContext";
 import api from "../lib/api";
 
 export default function SiteHeader() {
   const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
+  const { isPro } = useBilling();
   const nav = useNavigate();
   const location = useLocation();
   const [avatarUrl, setAvatarUrl] = useState(null);
@@ -48,6 +52,11 @@ export default function SiteHeader() {
             <Cloud className="h-5 w-5 text-white" strokeWidth={2.5} fill="white" fillOpacity={0.15} />
           </div>
           <span className="font-display text-xl tracking-tight font-black uppercase hidden sm:inline">CardCloud</span>
+          {isPro && (
+            <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-widest bg-gradient-to-r from-[#FFD60A]/20 to-[#FF9500]/20 border border-[#FFD60A]/40 text-[#FFCC00] px-1.5 py-0.5 rounded-sm font-black ml-1" data-testid="pro-badge-header">
+              <Sparkles className="h-2.5 w-2.5" /> Pro
+            </span>
+          )}
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2">
@@ -57,6 +66,9 @@ export default function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={toggle} className="text-neutral-400 hover:text-white hover:bg-white/5" data-testid="theme-toggle">
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
           <Link to="/profile" className="hidden sm:flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition" data-testid="user-chip">
             {avatarUrl ? (
               <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover ring-1 ring-white/10" />

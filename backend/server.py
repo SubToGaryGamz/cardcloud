@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, UploadFile, File, Query, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, UploadFile, File, Query, Response, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -27,6 +27,12 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ['JWT_SECRET']
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 APP_NAME = os.environ.get('APP_NAME', 'cardcloud')
+STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
+
+# Server-side fixed packages (NEVER take amount from frontend)
+PACKAGES = {
+    "pro_monthly": {"amount": 6.00, "currency": "usd", "label": "CardCloud Pro · Monthly"},
+}
 
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 EMERGENT_AUTH_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
@@ -97,6 +103,8 @@ class User(BaseModel):
     avatar_path: Optional[str] = None
     public_vault_token: Optional[str] = None
     auth_provider: str  # "email" | "google"
+    is_pro: bool = False
+    pro_expires_at: Optional[str] = None
     created_at: str
 
 
@@ -638,6 +646,7 @@ async def cards_timeseries(months: int = 12, user: User = Depends(get_current_us
 
 @api_router.get("/cards/export.csv")
 async def export_cards_csv(user: User = Depends(get_current_user)):
+    await _require_pro(user)
     docs = await db.cards.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(5000)
     buf = io.StringIO()
     writer = csv.writer(buf)
@@ -804,6 +813,7 @@ async def quick_sell(card_id: str, req: QuickSellReq, user: User = Depends(get_c
 
 @api_router.post("/cards/import")
 async def import_cards(file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    await _require_pro(user)
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Please upload a .csv file")
     raw = await file.read()
@@ -1155,6 +1165,255 @@ async def estimate_price(item_id: str, user: User = Depends(get_current_user)):
         {"$set": {"ai_estimate": result, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     return result
+
+
+# ============ Billing (Stripe) ============
+def _user_is_pro(user_doc: dict) -> bool:
+    if not user_doc:
+        return False
+    if user_doc.get("is_pro") is True:
+        # Check expiry
+        exp = user_doc.get("pro_expires_at")
+        if exp:
+            try:
+                dt = datetime.fromisoformat(exp)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if dt > datetime.now(timezone.utc):
+                    return True
+                return False
+            except Exception:
+                return False
+        return True
+    return False
+
+
+async def _require_pro(user: User):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not _user_is_pro(doc):
+        raise HTTPException(status_code=402, detail="Pro subscription required")
+
+
+class CheckoutReq(BaseModel):
+    package_id: str
+    origin_url: str
+
+
+@api_router.post("/billing/checkout")
+async def create_checkout(req: CheckoutReq, http_request: Request, user: User = Depends(get_current_user)):
+    if req.package_id not in PACKAGES:
+        raise HTTPException(status_code=400, detail="Invalid package")
+    pkg = PACKAGES[req.package_id]
+    try:
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Billing unavailable: {e}")
+
+    host_url = str(http_request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    sc = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+
+    origin = req.origin_url.rstrip("/")
+    success_url = f"{origin}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin}/profile"
+    metadata = {
+        "user_id": user.user_id,
+        "email": user.email,
+        "package_id": req.package_id,
+        "source": "cardcloud_pro",
+    }
+    session = await sc.create_checkout_session(
+        CheckoutSessionRequest(
+            amount=float(pkg["amount"]),
+            currency=pkg["currency"],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata,
+        )
+    )
+
+    await db.payment_transactions.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user.user_id,
+        "session_id": session.session_id,
+        "amount": float(pkg["amount"]),
+        "currency": pkg["currency"],
+        "package_id": req.package_id,
+        "metadata": metadata,
+        "payment_status": "initiated",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"url": session.url, "session_id": session.session_id}
+
+
+@api_router.get("/billing/status/{session_id}")
+async def billing_status(session_id: str, http_request: Request, user: User = Depends(get_current_user)):
+    txn = await db.payment_transactions.find_one({"session_id": session_id, "user_id": user.user_id}, {"_id": 0})
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    # Already finalized — idempotent return
+    if txn.get("payment_status") == "paid":
+        return {"payment_status": "paid", "status": "complete", "is_pro": True}
+
+    try:
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Billing unavailable: {e}")
+
+    host_url = str(http_request.base_url).rstrip("/")
+    sc = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=f"{host_url}/api/webhook/stripe")
+    status = await sc.get_checkout_status(session_id)
+
+    new_status = status.payment_status  # 'paid' | 'unpaid' | etc.
+    await db.payment_transactions.update_one(
+        {"session_id": session_id, "user_id": user.user_id},
+        {"$set": {
+            "payment_status": new_status,
+            "stripe_status": status.status,
+            "amount_total": status.amount_total,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    if new_status == "paid":
+        # Activate Pro for 31 days; idempotent because we check txn first
+        existing = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+        base = datetime.now(timezone.utc)
+        # If already pro and not expired, extend from current expiry
+        if existing and existing.get("pro_expires_at"):
+            try:
+                cur = datetime.fromisoformat(existing["pro_expires_at"])
+                if cur.tzinfo is None:
+                    cur = cur.replace(tzinfo=timezone.utc)
+                if cur > base:
+                    base = cur
+            except Exception:
+                pass
+        new_exp = base + timedelta(days=31)
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$set": {"is_pro": True, "pro_expires_at": new_exp.isoformat()}}
+        )
+    return {"payment_status": new_status, "status": status.status, "is_pro": new_status == "paid"}
+
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    body = await request.body()
+    sig = request.headers.get("Stripe-Signature")
+    try:
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout
+    except Exception as e:
+        logger.error(f"Stripe webhook lib error: {e}")
+        return {"ok": False}
+    host_url = str(request.base_url).rstrip("/")
+    sc = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=f"{host_url}/api/webhook/stripe")
+    try:
+        ev = await sc.handle_webhook(body, sig)
+    except Exception as e:
+        logger.error(f"Stripe webhook decode error: {e}")
+        return {"ok": False}
+    # Note: status polling on success page handles activation; webhook is additional safety
+    if ev and ev.payment_status == "paid" and ev.metadata and ev.metadata.get("user_id"):
+        user_id = ev.metadata["user_id"]
+        await db.payment_transactions.update_one(
+            {"session_id": ev.session_id},
+            {"$set": {"payment_status": "paid", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        existing = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+        base = datetime.now(timezone.utc)
+        if existing and existing.get("pro_expires_at"):
+            try:
+                cur = datetime.fromisoformat(existing["pro_expires_at"])
+                if cur.tzinfo is None:
+                    cur = cur.replace(tzinfo=timezone.utc)
+                if cur > base:
+                    base = cur
+            except Exception:
+                pass
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"is_pro": True, "pro_expires_at": (base + timedelta(days=31)).isoformat()}}
+        )
+    return {"ok": True}
+
+
+@api_router.get("/billing/me")
+async def billing_me(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    is_pro = _user_is_pro(doc)
+    return {
+        "is_pro": is_pro,
+        "pro_expires_at": doc.get("pro_expires_at") if doc else None,
+        "packages": PACKAGES,
+    }
+
+
+# ============ Tax Export (Pro-only, IRS Form 8949 format) ============
+@api_router.get("/cards/tax/export.csv")
+async def tax_export(year: Optional[int] = None, user: User = Depends(get_current_user)):
+    await _require_pro(user)
+    docs = await db.cards.find({"user_id": user.user_id, "status": "sold"}, {"_id": 0}).to_list(5000)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    # Form 8949 columns: (a) Description, (b) Date acquired, (c) Date sold, (d) Proceeds, (e) Cost basis, (f) Code, (g) Adjustment, (h) Gain/(Loss), Term
+    writer.writerow([
+        "(a) Description of property",
+        "(b) Date acquired",
+        "(c) Date sold or disposed",
+        "(d) Proceeds (sales price)",
+        "(e) Cost or other basis",
+        "(f) Code, if any",
+        "(g) Amount of adjustment",
+        "(h) Gain or (loss)",
+        "Term",
+    ])
+    total_gain = 0.0
+    rows = 0
+    for d in docs:
+        sold_dt = _card_date(d, "sold")
+        if not sold_dt:
+            continue
+        if year and sold_dt.year != year:
+            continue
+        acquired_dt = _card_date(d, "paid")
+        proceeds = float(d.get("price_sold") or 0)
+        basis = float(d.get("price_paid") or 0)
+        adj = float(d.get("expenses") or 0)  # Treat fees as basis adjustment via column (g)
+        # Form 8949: gain = proceeds - basis - adjustment
+        gain = round(proceeds - basis - adj, 2)
+        total_gain += gain
+        term = "Short-term"
+        if acquired_dt and sold_dt:
+            held_days = (sold_dt - acquired_dt).days
+            if held_days > 365:
+                term = "Long-term"
+        desc_parts = [str(d.get("year") or ""), d.get("name") or ""]
+        if d.get("condition"):
+            desc_parts.append(d["condition"] + (f" {d['grade']}" if d.get("grade") else ""))
+        description = " ".join([p for p in desc_parts if p]).strip()
+        writer.writerow([
+            description,
+            (acquired_dt.strftime("%m/%d/%Y") if acquired_dt else ""),
+            sold_dt.strftime("%m/%d/%Y"),
+            f"{proceeds:.2f}",
+            f"{basis:.2f}",
+            "",
+            f"{adj:.2f}" if adj else "",
+            f"{gain:.2f}",
+            term,
+        ])
+        rows += 1
+    # Totals row
+    writer.writerow([])
+    writer.writerow(["", "", "TOTAL", "", "", "", "", f"{round(total_gain, 2):.2f}", f"{rows} transactions"])
+
+    filename = f"cardcloud_tax_8949_{year or 'all'}.csv"
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @api_router.get("/files/{path:path}")

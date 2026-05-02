@@ -1,10 +1,10 @@
 import React, { useRef, useState } from "react";
 import { Button } from "./ui/button";
-import { Upload } from "lucide-react";
+import { Upload, Lock } from "lucide-react";
 import api from "../lib/api";
 import { toast } from "sonner";
 
-export default function ImportCsvButton({ onImported }) {
+export default function ImportCsvButton({ onImported, isPro = true, onLockedClick }) {
   const ref = useRef(null);
   const [busy, setBusy] = useState(false);
 
@@ -20,7 +20,12 @@ export default function ImportCsvButton({ onImported }) {
       toast.success(`Imported ${imported} card${imported === 1 ? "" : "s"}${skipped ? ` · ${skipped} skipped` : ""}`);
       onImported?.();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Import failed");
+      if (err?.response?.status === 402) {
+        toast.error("Pro required for CSV import");
+        onLockedClick?.();
+      } else {
+        toast.error(err?.response?.data?.detail || "Import failed");
+      }
     } finally {
       setBusy(false);
       if (ref.current) ref.current.value = "";
@@ -33,11 +38,11 @@ export default function ImportCsvButton({ onImported }) {
       <Button
         variant="outline"
         disabled={busy}
-        onClick={() => ref.current?.click()}
+        onClick={() => isPro ? ref.current?.click() : onLockedClick?.()}
         className="bg-transparent border-white/20 text-white hover:bg-white/5"
         data-testid="import-csv-button"
       >
-        <Upload className="h-4 w-4 mr-2" /> {busy ? "Importing…" : "Import CSV"}
+        {isPro ? <Upload className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />} {busy ? "Importing…" : "Import CSV"}
       </Button>
     </>
   );

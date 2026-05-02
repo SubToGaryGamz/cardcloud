@@ -1,0 +1,60 @@
+{
+  "summary": "Iteration 7 (Stripe billing, IRS Form 8949 tax export, theme toggle, keyboard shortcuts, Pro gating) tested. Backend pytest: 23/24 PASS. Frontend Playwright: all key UI testids and shortcuts verified. ONE backend bug found: GET /api/billing/status/{session_id} returns 500 when polling a freshly-created (unpaid) Stripe session due to uncaught CheckoutError from emergentintegrations — this will break the BillingSuccess polling UX for any real user. All Pro-gating (402/200), tax 8949 CSV format (Long-term/Short-term, mm/dd/yyyy, gain math), year filter, idempotent paid path, webhook-bad-sig safety, billing/me shape, server-side $6/USD package amount, and full regression of cards CRUD/stats/timeseries/best-flip/watchlist/auth all confirmed working.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/billing/status/{session_id}",
+        "issue": "Returns 500 Internal Server Error when polling a freshly-created session for which Stripe responds 'No such checkout.session'. emergentintegrations.payments.stripe.checkout.get_checkout_status raises CheckoutError which is NOT caught in the route. This will break the BillingSuccess page polling for any user who opens /billing/success?session_id=... because the page calls /billing/status repeatedly.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/webhook/stripe",
+        "issue": "On bad signature returns {ok:false} (good) but logs ERROR via logger.error for every malformed/unsigned hit — could be noisy. Consider logger.warning instead."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Stripe success page polling",
+        "issue": "BillingSuccess page polls /api/billing/status which currently 500s for any not-yet-paid session, so the page may show an error state or get stuck. Once the backend bug above is fixed, retest end-to-end (without completing a real payment, just verify polling shows 'unpaid'/'open' instead of crashing).",
+        "affected_selectors": ["billing-success-page"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_7.py",
+    "/app/test_reports/pytest/iter7_results.xml"
+  ],
+  "action_items": [
+    "FIX (HIGH): Wrap `await sc.get_checkout_status(session_id)` in /api/billing/status/{session_id} (server.py ~line 1266) in try/except. On CheckoutError or generic Exception, return {payment_status: 'unknown' or last-known DB value, status: 'pending', is_pro: false} with HTTP 200, and log the underlying error. Currently any Stripe-side miss bubbles a 500 and breaks the BillingSuccess polling UX.",
+    "Optional: validate Card.grade range (1.0-10.0) and Card.condition enum server-side (carried from iter5).",
+    "Optional: split server.py (~1446 lines now) into routers: auth, cards, watchlist, billing, public, files."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew to ~1446 lines — splitting into routers is overdue (auth/cards/watchlist/billing/public/files).",
+    "/api/billing/status/{session_id}: get_checkout_status not wrapped in try/except — CheckoutError propagates as unhandled 500. This is the active bug. Pattern: try/except (CheckoutError, Exception) -> log + return last-known DB status with 200.",
+    "/api/webhook/stripe: catches exception broadly and returns {ok:false} — good, does not crash on bad sig as required. However it always returns HTTP 200 even on error which means Stripe will not retry; consider 200 only on success and 4xx on bad sig if you ever switch to a real Stripe account.",
+    "PACKAGES dict is read server-side for amount — verified amount=6.00 USD comes from server (test asserted via DB inspection of payment_transactions.amount). Client cannot influence price. ✅",
+    "Tax export uses held_days > 365 for Long-term — IRS technically uses 'more than one year' which is >365 days (≥366) and matches.  ✅ Date format mm/dd/yyyy ✅. Gain = proceeds - basis - adj ✅.",
+    "_require_pro is checked on /cards/export.csv, /cards/import, /cards/tax/export.csv ✅. Note: /cards/tax/export.csv is defined AFTER /cards/{card_id} would have been a problem, but it's actually nested under /cards/tax/export.csv so the {card_id} matcher does not catch it (verified by 200/402 returns rather than 404).",
+    "billing_status idempotency: when txn already 'paid' it returns immediately without polling Stripe again ✅. New sessions extend pro_expires_at from current expiry rather than from now if still active ✅.",
+    "webhook handler has duplicate Pro-extension logic also embedded in /billing/status — both compute base from existing pro_expires_at and add 31 days. DRY violation — extract to a helper async def _grant_pro(user_id, days=31).",
+    "PaymentTransactions don't have an index on (session_id, user_id) — for production, add a unique compound index."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_7.py (new — 24 cases: billing/me, checkout valid+invalid+unauth, status nonexistent+initiated+idempotent-paid, webhook bad-sig & missing-sig, Pro-gating on export/import/tax (402↔200), tax CSV 8949 columns + ST/LT term + mm/dd/yyyy + gain math + year filter, regression for auth/cards/stats/timeseries/best-flip/watchlist/CRUD)"
+  ],
+  "success_rate": {"backend": "95.8% (23/24 pytest)", "frontend": "100% on tested flows (theme toggle + persistence, pro-badge-header, tax-export-button, export/import buttons, n/'/'/1/2 shortcuts, pro-card with $6 + Active state, billing-success-page)"},
+  "test_credentials": "demo@example.com / demo1234 (currently is_pro=true via mongosh seed)",
+  "seed_data_creation": "Tests temporarily flip demo user's is_pro flag for gating tests and restore it. Tax-export tests insert 3 TEST_I7_* sold cards (ST/LT/old-year) and clean them in fixture teardown. Idempotency test inserts a synthetic 'paid' payment_transactions row and deletes it. No persistent pollution.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter7 = Stripe Pro billing ($6/mo, single package pro_monthly, server-side amount), IRS Form 8949 tax export (Pro-gated), Pro-gated CSV export+import (402 if not Pro), theme toggle (html.light class + localStorage cv_theme), keyboard shortcuts (n=add modal, /=search focus, 1=scroll in-collection, 2=scroll sold). Demo user is currently is_pro=true; flip via `db.users.updateOne({email:'demo@example.com'},{$set:{is_pro:false,pro_expires_at:null}})` for non-Pro UI testing then back. KNOWN BUG: /api/billing/status returns 500 on get_checkout_status failure — fix wraps that call in try/except. Frontend testids confirmed present: theme-toggle, pro-badge-header, tax-export-button, export-csv-button, import-csv-button, add-card-modal (or [role=dialog]), pro-card, subscribe-button (only when not Pro), billing-success-page. Server PACKAGES = {pro_monthly: {amount: 6.00, currency: 'usd'}}. test_iteration_7.py covers the new contract end-to-end + regression smoke.",
+  "rca of the issue": "Bug RCA — /api/billing/status 500: emergentintegrations StripeCheckout.get_checkout_status raises CheckoutError('Failed to retrieve session status: No such checkout.session: cs_test_...') for sessions that aren't yet recognised by the Stripe account behind sk_test_emergent (likely because the session was created on another test account/sandbox via emergent's proxy). The route does not catch CheckoutError, so FastAPI returns 500. Reproduction: 1) POST /api/billing/checkout (returns session_id), 2) immediately GET /api/billing/status/<session_id> -> 500. Mitigation: wrap the get_checkout_status call in try/except; on failure return last-known DB payment_status (or 'pending') with HTTP 200 so the BillingSuccess page can keep polling without bubbling an error to the user."
+}

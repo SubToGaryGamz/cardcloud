@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import api from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon } from "lucide-react";
+import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock } from "lucide-react";
 import { toast } from "sonner";
 import CardFormModal from "../components/CardFormModal";
 import StatCard from "../components/StatCard";
@@ -14,10 +14,16 @@ import ImportCsvButton from "../components/ImportCsvButton";
 import SiteHeader from "../components/SiteHeader";
 import BestFlipCard from "../components/BestFlipCard";
 import { SPORTS } from "../lib/sports";
+import { useBilling } from "../context/BillingContext";
+import { useNavigate } from "react-router-dom";
+import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 
 const EMPTY_BG = "https://images.unsplash.com/photo-1698239345711-67b1fabd645b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXJkJTIwYmFzZWJhbGx8ZW58MHx8fHwxNzc3Njc4Njc3fDA&ixlib=rb-4.1.0&q=85";
 
 export default function Dashboard() {
+  const { isPro } = useBilling();
+  const navigate = useNavigate();
+  const searchRef = useRef(null);
   const [stats, setStats] = useState(null);
   const [cards, setCards] = useState([]);
   const [topTags, setTopTags] = useState([]);
@@ -116,11 +122,17 @@ export default function Dashboard() {
   };
 
   const onExport = async () => {
+    if (!isPro) {
+      toast.error("CSV export is a Pro feature. Upgrade in Profile.");
+      navigate("/profile");
+      return;
+    }
     try {
       const token = localStorage.getItem("cv_token");
       const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/cards/export.csv`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 402) { toast.error("Pro required"); navigate("/profile"); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -130,6 +142,40 @@ export default function Dashboard() {
       toast.error("Export failed");
     }
   };
+
+  const onTaxExport = async () => {
+    if (!isPro) {
+      toast.error("Tax Export is a Pro feature. Upgrade in Profile.");
+      navigate("/profile");
+      return;
+    }
+    try {
+      const yearStr = window.prompt("Tax year? (leave blank for all)", String(new Date().getFullYear()));
+      if (yearStr === null) return;
+      const year = yearStr.trim();
+      const token = localStorage.getItem("cv_token");
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/cards/tax/export.csv${year ? `?year=${encodeURIComponent(year)}` : ""}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 402) { toast.error("Pro required"); navigate("/profile"); return; }
+      const blob = await res.blob();
+      const dl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = dl; a.download = `cardcloud_tax_8949_${year || "all"}.csv`; a.click();
+      URL.revokeObjectURL(dl);
+      toast.success("Tax export ready");
+    } catch (e) {
+      toast.error("Tax export failed");
+    }
+  };
+
+  // Keyboard shortcuts: n=new, /=focus search, 1=in collection, 2=sold
+  const shortcutMap = useMemo(() => ({
+    n: () => { setEditing(null); setModalOpen(true); },
+    "/": () => searchRef.current?.focus(),
+    "1": () => document.querySelector('[data-testid="section-in-collection"]')?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    "2": () => document.querySelector('[data-testid="section-sold"]')?.scrollIntoView({ behavior: "smooth", block: "start" }),
+  }), []);
+  useKeyboardShortcuts(shortcutMap);
 
   const profitPositive = (stats?.profit ?? 0) >= 0;
   const anyFilterActive = q || statusFilter !== "all" || yearFilter || sportFilter !== "all" || tagFilter;
@@ -163,9 +209,12 @@ export default function Dashboard() {
                 <SelectItem value="1y">Last 12 months</SelectItem>
               </SelectContent>
             </Select>
-            <ImportCsvButton onImported={bumpRefresh} />
+            <ImportCsvButton onImported={bumpRefresh} isPro={isPro} onLockedClick={() => navigate("/profile")} />
             <Button variant="outline" onClick={onExport} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="export-csv-button">
-              <Download className="h-4 w-4 mr-2" /> Export
+              {isPro ? <Download className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />} Export
+            </Button>
+            <Button variant="outline" onClick={onTaxExport} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="tax-export-button">
+              {isPro ? <FileText className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />} Tax 8949
             </Button>
             <Button onClick={() => { setEditing(null); setModalOpen(true); }} className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid="add-card-button">
               <Plus className="h-4 w-4 mr-2" /> Add Card
@@ -217,7 +266,7 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row gap-2 md:gap-3 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, sport, or tag…" className="pl-9 bg-[#141414] border-white/10" data-testid="search-cards-input" />
+            <Input ref={searchRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, sport, or tag…  (press / to focus)" className="pl-9 bg-[#141414] border-white/10" data-testid="search-cards-input" />
           </div>
           <Input
             value={yearFilter}
