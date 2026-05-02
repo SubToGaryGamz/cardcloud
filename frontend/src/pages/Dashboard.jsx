@@ -296,8 +296,10 @@ export default function Dashboard() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8" data-testid="cards-grid">
-            {cards.map((c) => (
+          (() => {
+            const inCol = cards.filter((c) => c.status !== "sold");
+            const sold = cards.filter((c) => c.status === "sold");
+            const renderCard = (c) => (
               <CollectionCard
                 key={c.id}
                 card={c}
@@ -307,8 +309,55 @@ export default function Dashboard() {
                 onTagClick={(t) => setTagFilter(t)}
                 onShareChanged={bumpRefresh}
               />
-            ))}
-          </div>
+            );
+            const soldProfit = sold.reduce((acc, c) => acc + (Number(c.price_sold || 0) - Number(c.price_paid || 0) - Number(c.expenses || 0)), 0);
+            const SectionHeader = ({ accent, label, count, right }) => (
+              <div className="mb-4 flex items-end justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className={`h-7 w-1.5 rounded-sm ${accent}`} />
+                  <div>
+                    <div className="text-[10px] tracking-[0.3em] uppercase text-neutral-500 font-bold">{label}</div>
+                    <div className="font-display text-2xl sm:text-3xl tracking-tight font-black uppercase mt-0.5">
+                      {count} <span className="text-neutral-500 font-normal text-base">card{count === 1 ? "" : "s"}</span>
+                    </div>
+                  </div>
+                </div>
+                {right}
+              </div>
+            );
+            return (
+              <div className="space-y-12" data-testid="cards-grid">
+                {inCol.length > 0 && (
+                  <section data-testid="section-in-collection">
+                    <SectionHeader accent="bg-[#007AFF]" label="In Collection" count={inCol.length} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+                      {inCol.map(renderCard)}
+                    </div>
+                  </section>
+                )}
+                {sold.length > 0 && (
+                  <section data-testid="section-sold">
+                    <SectionHeader
+                      accent={soldProfit >= 0 ? "bg-[#34C759]" : "bg-[#FF3B30]"}
+                      label="Sold"
+                      count={sold.length}
+                      right={
+                        <div className="text-right">
+                          <div className="text-[10px] tracking-[0.3em] uppercase text-neutral-500 font-bold">Total Profit</div>
+                          <div className={`font-display text-2xl sm:text-3xl tracking-tight font-black ${soldProfit >= 0 ? "text-[#34C759]" : "text-[#FF3B30]"}`} data-testid="sold-section-profit">
+                            {soldProfit >= 0 ? "+" : "−"}${Math.abs(soldProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      }
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+                      {sold.map(renderCard)}
+                    </div>
+                  </section>
+                )}
+              </div>
+            );
+          })()
         )}
       </main>
 
