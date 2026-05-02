@@ -356,7 +356,11 @@ export default function Landing() {
             </div>
             <span className="font-display text-base tracking-tight font-black uppercase text-white">CardCloud</span>
           </div>
-          <div className="text-xs uppercase tracking-widest">Track every flip · Win every flex</div>
+          <div className="flex items-center gap-5 text-xs uppercase tracking-widest">
+            <Link to="/privacy" className="hover:text-white transition" data-testid="footer-privacy-link">Privacy</Link>
+            <Link to="/terms" className="hover:text-white transition" data-testid="footer-terms-link">Terms</Link>
+            <span className="hidden sm:inline">Track every flip · Win every flex</span>
+          </div>
         </div>
       </footer>
     </div>

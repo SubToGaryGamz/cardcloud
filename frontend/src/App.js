@@ -13,6 +13,8 @@ import AuthCallback from "./pages/AuthCallback";
 import PublicCard from "./pages/PublicCard";
 import PublicVault from "./pages/PublicVault";
 import BillingSuccess from "./pages/BillingSuccess";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import { Toaster } from "./components/ui/sonner";
 
 function ProtectedRoute({ children }) {
@@ -44,6 +46,8 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="/s/c/:token" element={<PublicCard />} />
       <Route path="/s/v/:token" element={<PublicVault />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />

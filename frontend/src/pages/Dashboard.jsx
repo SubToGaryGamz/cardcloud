@@ -17,6 +17,7 @@ import { SPORTS } from "../lib/sports";
 import { useBilling } from "../context/BillingContext";
 import { useNavigate } from "react-router-dom";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
+import { isNativePlatform } from "../lib/platform";
 
 const EMPTY_BG = "https://images.unsplash.com/photo-1698239345711-67b1fabd645b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXJkJTIwYmFzZWJhbGx8ZW58MHx8fHwxNzc3Njc4Njc3fDA&ixlib=rb-4.1.0&q=85";
 
@@ -189,8 +190,8 @@ export default function Dashboard() {
       <SiteHeader />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 relative z-10">
-        {/* Pro upsell banner (free users only) */}
-        {!isPro && (
+        {/* Pro upsell banner (free users only — hidden in native to comply with App Store IAP rules) */}
+        {!isPro && !isNativePlatform() && (
           <div className="relative mb-6 rounded-xl bg-gradient-to-br from-[#FFD60A]/15 via-[#141414] to-[#141414] border border-[#FFD60A]/40 p-5 sm:p-6 overflow-hidden shadow-glow-red fade-up" data-testid="pro-upsell-banner">
             <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/4 h-44 w-44 rounded-full bg-[#FFD60A]/20 blur-3xl pointer-events-none" />
             <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5">

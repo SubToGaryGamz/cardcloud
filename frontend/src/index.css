@@ -15,6 +15,29 @@ body {
   color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Disable iOS pull-to-refresh wobble inside Capacitor webview */
+  overscroll-behavior-y: contain;
+  /* Avoid iOS text auto-zoom on form focus */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* iOS safe-area: respect notch / home indicator when running inside Capacitor */
+@supports (padding: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Prevent text selection on UI chrome (long-press menus inside the app) */
+.app-chrome, header, nav, button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .font-display {

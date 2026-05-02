@@ -60,6 +60,8 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 - ✅ **Keyboard shortcuts**: n=new card, /=focus search, 1/2=jump to In Collection / Sold sections
 - ✅ **Pro upsell banner** on Vault dashboard (only shown to free users)
 - ✅ **Light-mode polish**: gradient stops (best flip card, sold tiles, image placeholders) properly themed for light mode
+- ✅ **Logo click → Landing while signed-in** (token preserved; Landing renders auth-aware "Open my vault")
+- ✅ **iOS App Store readiness** — Capacitor wrapper added (`@capacitor/core` + `ios`/`splash-screen`/`status-bar`/`keyboard`), `capacitor.config.ts` (`com.cardcloud.app`), iOS Xcode project scaffolded at `frontend/ios/`, App Icon (1024×1024) + Splash assets generated from Cloud logo, Info.plist privacy strings (camera/photos), iOS safe-area CSS, PWA manifest + meta tags, `/privacy` + `/terms` pages, Pro upgrade automatically gated when running on native (App Store IAP compliance, Option A). Build guide at `/app/IOS_BUILD.md`.
 
 ## Known Notes
 - EMERGENT_LLM_KEY has a small budget cap in dev. If AI estimates return 502, top up in Profile → Universal Key → Add Balance.

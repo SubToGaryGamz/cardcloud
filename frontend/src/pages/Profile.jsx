@@ -9,6 +9,7 @@ import { Upload, Save, User as UserIcon, Share2, Copy, ExternalLink, Sparkles, C
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useBilling } from "../context/BillingContext";
+import { isNativePlatform } from "../lib/platform";
 
 export default function Profile() {
   const { user, refresh } = useAuth();
@@ -225,14 +226,25 @@ export default function Profile() {
           </div>
 
           {!isPro && (
-            <Button
-              onClick={onSubscribe}
-              disabled={subscribing}
-              className="mt-5 bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide shadow-glow-red"
-              data-testid="subscribe-button"
-            >
-              <Sparkles className="h-4 w-4 mr-2" /> {subscribing ? "Redirecting…" : `Upgrade for $${proPrice}/mo`}
-            </Button>
+            isNativePlatform() ? (
+              <div
+                className="mt-5 rounded-md border border-white/10 bg-black/30 p-4 text-sm text-neutral-300"
+                data-testid="native-upgrade-notice"
+              >
+                <div className="text-[10px] uppercase tracking-widest text-[#FF8079] font-bold mb-1">Upgrade on web</div>
+                Pro is currently available only on the CardCloud website. Visit{" "}
+                <span className="text-white font-semibold">cardcloud.app</span> in your browser to upgrade — your account stays in sync automatically.
+              </div>
+            ) : (
+              <Button
+                onClick={onSubscribe}
+                disabled={subscribing}
+                className="mt-5 bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide shadow-glow-red"
+                data-testid="subscribe-button"
+              >
+                <Sparkles className="h-4 w-4 mr-2" /> {subscribing ? "Redirecting…" : `Upgrade for $${proPrice}/mo`}
+              </Button>
+            )
           )}
         </div>
       </main>
