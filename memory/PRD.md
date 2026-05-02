@@ -39,21 +39,21 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 
 ## Implemented (Feb 2026)
 - ✅ JWT email/password auth + Emergent Google OAuth
-- ✅ Object storage for card images + user avatars, owner-scoped file access
+- ✅ Object storage for card images + user avatars
 - ✅ Cards CRUD + stats + CSV export/import
-- ✅ Search/filter by name, year, status, sport, and tag
+- ✅ Search/filter by name, year, status, sport, tag, **condition**
 - ✅ Dashboard with 4 stat cards, color-coded profit
-- ✅ Dark sporty theme; Barlow Condensed + DM Sans
-- ✅ Quick Sell per-card action
-- ✅ Purchased/Sold date fields + time-range filter
 - ✅ Charts: profit-over-time + cards-by-year
-- ✅ Sport field + Tags (click-to-filter, tag cloud)
-- ✅ Watchlist CRUD + Acquire flow
-- ✅ User Profile + avatar upload
-- ✅ CardCloud rebrand with cloud logo
-- ✅ **Multi-image per card** (manage + lightbox + multi-image storage)
-- ✅ **Watchlist price suggestions** — eBay sold-comps link + AI estimate via Claude (emergentintegrations)
-- ✅ **Public Showcase** — per-card share link (`/s/c/<token>`) + whole-vault public toggle (`/s/v/<token>`). Sanitized read-only: hides cost/sales/fees.
+- ✅ Quick Sell, Purchased/Sold dates, time-range filter
+- ✅ Sport field + Tags
+- ✅ Watchlist + Acquire flow
+- ✅ User Profile + avatar
+- ✅ Multi-image per card + Lightbox
+- ✅ Public Showcase (per-card share link + public vault)
+- ✅ Watchlist price suggestions (eBay sold comps + AI estimate via Claude)
+- ✅ **Condition** (Raw/PSA/BGS/SGC/CGC/Other) + **Grade** (1.0–10.0)
+- ✅ **Best Flip of the Month** dashboard tile (red gradient, image + profit)
+- ✅ **Card tile button layout fixed**: Quick Sell full-width row + Edit/Share equal 50/50 row
 
 ## Known Notes
 - EMERGENT_LLM_KEY has a small budget cap in dev. If AI estimates return 502, top up in Profile → Universal Key → Add Balance.
