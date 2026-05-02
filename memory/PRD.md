@@ -43,14 +43,19 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 - ✅ Dashboard with 4 stat cards, color-coded profit
 - ✅ Bento card grid with image thumbnails, status badges, per-card profit
 - ✅ Dark sporty theme with Barlow Condensed + DM Sans
+- ✅ **Quick Sell** per-card action: one-tap flip to Sold with extra fees + date
+- ✅ **Purchased Date + Sold Date** fields on every card
+- ✅ **Time-range filter**: All / 30d / 90d / 1y (stats recompute)
+- ✅ **Charts**: Profit over time (area) + Cards by year (bar) via recharts
+- ✅ **Bulk CSV import**: same columns as export; parse, skip bad rows, toast
 
 ## Backlog (Prioritised)
-- P1: Per-card sale date / acquired date so dashboards can support time filters
-- P1: Charts (profit over time, cards by year)
+- P1: User profile + avatar upload
 - P2: Multi-image per card (front/back/raw vs slabbed)
 - P2: PSA/grading details, set/manufacturer fields, cost-basis FIFO/average
-- P2: Bulk import via CSV
+- P2: Mobile-optimized cards layout refinements
 - P3: Tags/notes, public read-only share link for a card
+- P3: Per-user currency setting (USD default)
 
 ## Test Credentials
 See `/app/memory/test_credentials.md`
