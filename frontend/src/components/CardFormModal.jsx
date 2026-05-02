@@ -9,6 +9,7 @@ import TagInput from "./TagInput";
 import MultiImageManager from "./MultiImageManager";
 import { SPORTS } from "../lib/sports";
 import { CONDITIONS, CONDITION_IS_GRADED } from "../lib/conditions";
+import { useBilling } from "../context/BillingContext";
 
 const empty = {
   year: new Date().getFullYear(),
@@ -27,6 +28,8 @@ const empty = {
 };
 
 export default function CardFormModal({ open, onClose, onSave, card, onCardMutated }) {
+  const { isPro, limits } = useBilling();
+  const tagLimit = isPro ? null : (limits?.tags_per_card ?? 1);
   const [form, setForm] = useState(empty);
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
@@ -128,7 +131,14 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
 
           <div>
             <Label className="text-xs tracking-widest uppercase text-neutral-400">Tags</Label>
-            <TagInput value={form.tags} onChange={(v) => setForm({ ...form, tags: v })} placeholder="e.g. team, player, rookie, holo…" testId="form-tags-input" />
+            <TagInput
+              value={form.tags}
+              onChange={(v) => setForm({ ...form, tags: v })}
+              placeholder="e.g. team, player, rookie, holo…"
+              testId="form-tags-input"
+              maxTags={tagLimit}
+              upgradeHint={tagLimit !== null ? `Free plan: ${tagLimit} tag per card · Upgrade to Pro for unlimited` : null}
+            />
             <p className="text-[11px] text-neutral-500 mt-1.5">Press Enter or comma to add. Use team, player, set, parallel, etc.</p>
           </div>
 

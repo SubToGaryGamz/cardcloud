@@ -7,10 +7,13 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
-import { Eye, Plus, Target, Trash2, Pencil, ShoppingBag, Tag as TagIcon, ExternalLink, Sparkles } from "lucide-react";
+import { Eye, Plus, Target, Trash2, Pencil, ShoppingBag, Tag as TagIcon, ExternalLink, Sparkles, Lock } from "lucide-react";
 import { toast } from "sonner";
 import TagInput from "../components/TagInput";
 import { SPORTS } from "../lib/sports";
+import { useBilling } from "../context/BillingContext";
+import { useNavigate } from "react-router-dom";
+import { isNativePlatform } from "../lib/platform";
 
 function WatchForm({ open, onClose, onSave, item }) {
   const [form, setForm] = useState({ year: new Date().getFullYear(), name: "", sport: "", tags: [], target_price: "", notes: "" });
@@ -165,6 +168,9 @@ function AcquireModal({ open, onClose, item, onDone }) {
 }
 
 export default function Watchlist() {
+  const { isPro } = useBilling();
+  const navigate = useNavigate();
+  const native = isNativePlatform();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -173,6 +179,7 @@ export default function Watchlist() {
   const [estimating, setEstimating] = useState(null);
 
   const load = async () => {
+    if (!isPro) { setLoading(false); return; }
     setLoading(true);
     try {
       const r = await api.get("/watchlist");
@@ -180,7 +187,7 @@ export default function Watchlist() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isPro]);
 
   const onSave = async (payload) => {
     try {
@@ -226,6 +233,50 @@ export default function Watchlist() {
   return (
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
       <SiteHeader />
+      {!isPro ? (
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-12 lg:py-20 relative z-10" data-testid="watchlist-paywall">
+          <div className="rounded-xl bg-gradient-to-br from-[#FFD60A]/15 via-[#141414] to-[#141414] border border-[#FFD60A]/40 p-8 sm:p-10 lg:p-14 relative overflow-hidden shadow-glow-red">
+            <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/3 h-64 w-64 rounded-full bg-[#FFD60A]/20 blur-3xl pointer-events-none" />
+            <div className="relative">
+              <div className="inline-flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-[#FFD60A] font-bold border border-[#FFD60A]/30 bg-[#FFD60A]/10 px-3 py-1.5 rounded-full">
+                <Lock className="h-3 w-3" /> Pro feature
+              </div>
+              <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-black uppercase leading-[0.95] mt-4">
+                Hunt smarter.<br />Acquire faster.
+              </h1>
+              <p className="text-neutral-300 mt-4 text-base max-w-xl">
+                The Watchlist tracks every card you're chasing — with eBay sold-comp links and Claude-powered AI price estimates so you know what to pay before you bid.
+              </p>
+              <ul className="mt-6 space-y-2 text-sm text-neutral-200">
+                <li className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-[#FFD60A]" /> AI price estimates (low / typical / high)</li>
+                <li className="flex items-center gap-2"><ExternalLink className="h-4 w-4 text-[#FFD60A]" /> One-click eBay sold comps</li>
+                <li className="flex items-center gap-2"><ShoppingBag className="h-4 w-4 text-[#FFD60A]" /> Acquire flow turns a target into a tracked card in one tap</li>
+              </ul>
+              {native ? (
+                <div className="mt-8 rounded-md border border-white/10 bg-black/30 p-4 text-sm text-neutral-300" data-testid="watchlist-native-notice">
+                  <div className="text-[10px] uppercase tracking-widest text-[#FF8079] font-bold mb-1">Upgrade on web</div>
+                  Pro is currently available only on the CardCloud website. Visit{" "}
+                  <span className="text-white font-semibold">cardcloud.app</span> in your browser to upgrade — your account stays in sync automatically.
+                </div>
+              ) : (
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <Button
+                    onClick={() => navigate("/profile")}
+                    className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide shadow-glow-red"
+                    data-testid="watchlist-upgrade-button"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" /> Upgrade to Pro — $6/mo
+                  </Button>
+                  <span className="text-xs text-neutral-500 uppercase tracking-widest">Cancel anytime · Stripe secure checkout</span>
+                </div>
+              )}
+              <div className="mt-6 text-[11px] uppercase tracking-widest text-neutral-500">
+                Already on your watchlist? Targets are saved — they reappear the moment you upgrade.
+              </div>
+            </div>
+          </div>
+        </main>
+      ) : (
       <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 relative z-10">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
@@ -325,6 +376,7 @@ export default function Watchlist() {
           </div>
         )}
       </main>
+      )}
 
       <WatchForm open={modalOpen} onClose={() => { setModalOpen(false); setEditing(null); }} onSave={onSave} item={editing} />
       <AcquireModal open={!!acquiring} item={acquiring} onClose={() => setAcquiring(null)} onDone={load} />

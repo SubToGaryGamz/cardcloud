@@ -206,12 +206,13 @@ export default function Dashboard() {
                     <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-semibold">$6/month · cancel anytime</span>
                   </div>
                   <h3 className="font-display text-xl sm:text-2xl font-black uppercase tracking-tight mt-1 leading-tight">
-                    Unlock CSV imports, exports & IRS Form 8949
+                    Unlock Watchlist, AI estimates & unlimited tags
                   </h3>
                   <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-300">
-                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> Bulk CSV import</li>
-                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> Full CSV export</li>
-                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> Tax-ready 8949 (short/long term)</li>
+                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> AI price estimates</li>
+                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> Unlimited tags</li>
+                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> CSV import / export</li>
+                    <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" /> IRS 8949 tax export</li>
                   </ul>
                 </div>
               </div>

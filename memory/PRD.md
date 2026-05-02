@@ -62,6 +62,8 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 - ✅ **Light-mode polish**: gradient stops (best flip card, sold tiles, image placeholders) properly themed for light mode
 - ✅ **Logo click → Landing while signed-in** (token preserved; Landing renders auth-aware "Open my vault")
 - ✅ **iOS App Store readiness** — Capacitor wrapper added (`@capacitor/core` + `ios`/`splash-screen`/`status-bar`/`keyboard`), `capacitor.config.ts` (`com.cardcloud.app`), iOS Xcode project scaffolded at `frontend/ios/`, App Icon (1024×1024) + Splash assets generated from Cloud logo, Info.plist privacy strings (camera/photos), iOS safe-area CSS, PWA manifest + meta tags, `/privacy` + `/terms` pages, Pro upgrade automatically gated when running on native (App Store IAP compliance, Option A). Build guide at `/app/IOS_BUILD.md`.
+- ✅ **Logout error overlay fix** — request interceptor cancels protected requests when no token (no more in-flight 401 blob errors); response interceptor strips stale token on 401; `index.html` global handlers swallow cross-origin "Script error." and axios blob `responseText` DOMException + `unhandledrejection` for `CanceledError`.
+- ✅ **Pro tier gating expanded** — Watchlist (full lockdown: nav lock icon + paywall page with eBay/AI feature pitch + upgrade CTA, native shows "Upgrade on web" copy); Tags now limited to 1/card on Free vs unlimited on Pro (backend enforces with 402 + descriptive error, frontend `TagInput` shows yellow upgrade hint when limit reached); existing watchlist data preserved server-side across upgrade/downgrade. `/api/billing/me` now returns `limits.tags_per_card`.
 
 ## Known Notes
 - EMERGENT_LLM_KEY has a small budget cap in dev. If AI estimates return 502, top up in Profile → Universal Key → Add Balance.

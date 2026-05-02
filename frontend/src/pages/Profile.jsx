@@ -214,6 +214,8 @@ export default function Profile() {
                 </p>
               )}
               <ul className="mt-4 space-y-1.5 text-sm">
+                <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> Watchlist + AI price estimates</li>
+                <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> Unlimited tags per card</li>
                 <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> CSV import (bulk add)</li>
                 <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> CSV export (full backup)</li>
                 <li className="flex items-center gap-2 text-neutral-300"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> IRS Form 8949 tax export</li>

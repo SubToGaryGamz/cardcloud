@@ -218,8 +218,8 @@ export default function Landing() {
               <ul className="mt-6 space-y-2.5 text-sm text-neutral-300">
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Unlimited cards</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Multi-image per card</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Watchlist + AI price estimates</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Charts, Best Flip, tags</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> 1 tag per card</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Charts, Best Flip, profit tracking</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Public showcase links</li>
               </ul>
               <Link
@@ -245,10 +245,11 @@ export default function Landing() {
                 </div>
                 <p className="text-neutral-300 text-sm mt-3">Everything in Starter, plus power tools built for serious flippers.</p>
                 <ul className="mt-6 space-y-2.5 text-sm text-neutral-200">
+                  <li className="flex items-center gap-2"><Eye className="h-4 w-4 text-[#FFD60A] shrink-0" /> Watchlist + AI price estimates (Claude)</li>
+                  <li className="flex items-center gap-2"><TagIcon className="h-4 w-4 text-[#FFD60A] shrink-0" /> Unlimited tags per card</li>
                   <li className="flex items-center gap-2"><Upload className="h-4 w-4 text-[#FFD60A] shrink-0" /> CSV import — bulk-add hundreds of cards</li>
                   <li className="flex items-center gap-2"><Download className="h-4 w-4 text-[#FFD60A] shrink-0" /> CSV export — full backup, anytime</li>
                   <li className="flex items-center gap-2"><FileText className="h-4 w-4 text-[#FFD60A] shrink-0" /> IRS Form 8949 tax export (short/long term)</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Priority to new features</li>
                   <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Cancel anytime · no lock-in</li>
                 </ul>
                 <Link

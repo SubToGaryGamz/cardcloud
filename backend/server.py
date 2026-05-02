@@ -445,7 +445,10 @@ def _card_doc(payload: dict, user_id: str, existing: Optional[dict] = None) -> d
 
 @api_router.post("/cards", response_model=Card)
 async def create_card(payload: CardCreate, user: User = Depends(get_current_user)):
-    doc = _card_doc(payload.model_dump(), user.user_id)
+    data = payload.model_dump()
+    if data.get("tags"):
+        data["tags"] = await _enforce_tag_limit(user, data.get("tags"))
+    doc = _card_doc(data, user.user_id)
     await db.cards.insert_one(doc)
     return Card(**{k: v for k, v in doc.items() if k != "_id"})
 
@@ -690,7 +693,7 @@ async def update_card(card_id: str, payload: CardUpdate, user: User = Depends(ge
         raise HTTPException(status_code=404, detail="Card not found")
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if "tags" in updates:
-        updates["tags"] = _norm_tags(updates["tags"])
+        updates["tags"] = await _enforce_tag_limit(user, updates["tags"])
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.cards.update_one({"id": card_id, "user_id": user.user_id}, {"$set": updates})
     new_doc = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
@@ -938,12 +941,14 @@ def _watch_doc(payload: dict, user_id: str) -> dict:
 
 @api_router.get("/watchlist", response_model=List[WatchItem])
 async def list_watchlist(user: User = Depends(get_current_user)):
+    await _require_pro(user)
     docs = await db.watchlist.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [WatchItem(**d) for d in docs]
 
 
 @api_router.post("/watchlist", response_model=WatchItem)
 async def create_watch(payload: WatchItemCreate, user: User = Depends(get_current_user)):
+    await _require_pro(user)
     doc = _watch_doc(payload.model_dump(), user.user_id)
     await db.watchlist.insert_one(doc)
     return WatchItem(**{k: v for k, v in doc.items() if k != "_id"})
@@ -951,6 +956,7 @@ async def create_watch(payload: WatchItemCreate, user: User = Depends(get_curren
 
 @api_router.put("/watchlist/{item_id}", response_model=WatchItem)
 async def update_watch(item_id: str, payload: WatchItemUpdate, user: User = Depends(get_current_user)):
+    await _require_pro(user)
     existing = await db.watchlist.find_one({"id": item_id, "user_id": user.user_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Watchlist item not found")
@@ -965,6 +971,7 @@ async def update_watch(item_id: str, payload: WatchItemUpdate, user: User = Depe
 
 @api_router.delete("/watchlist/{item_id}")
 async def delete_watch(item_id: str, user: User = Depends(get_current_user)):
+    await _require_pro(user)
     r = await db.watchlist.delete_one({"id": item_id, "user_id": user.user_id})
     if r.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Watchlist item not found")
@@ -973,6 +980,7 @@ async def delete_watch(item_id: str, user: User = Depends(get_current_user)):
 
 @api_router.post("/watchlist/{item_id}/acquire", response_model=Card)
 async def acquire_watch(item_id: str, req: AcquireReq, user: User = Depends(get_current_user)):
+    await _require_pro(user)
     existing = await db.watchlist.find_one({"id": item_id, "user_id": user.user_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Watchlist item not found")
@@ -1108,6 +1116,7 @@ async def public_image(token: str, path: str):
 # ============ AI Price Estimation ============
 @api_router.post("/watchlist/{item_id}/estimate")
 async def estimate_price(item_id: str, user: User = Depends(get_current_user)):
+    await _require_pro(user)
     item = await db.watchlist.find_one({"id": item_id, "user_id": user.user_id}, {"_id": 0})
     if not item:
         raise HTTPException(status_code=404, detail="Watchlist item not found")
@@ -1192,6 +1201,28 @@ async def _require_pro(user: User):
     doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
     if not _user_is_pro(doc):
         raise HTTPException(status_code=402, detail="Pro subscription required")
+
+
+FREE_TAG_LIMIT = 1
+
+
+async def _enforce_tag_limit(user: User, tags) -> list:
+    """Free users may have at most FREE_TAG_LIMIT tags per card.
+    Pro users may have unlimited tags. Returns the (already normalized) tag list.
+    Raises 402 with a descriptive detail if free user exceeds the limit.
+    """
+    norm = _norm_tags(tags)
+    if not norm:
+        return norm
+    if len(norm) <= FREE_TAG_LIMIT:
+        return norm
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if _user_is_pro(doc):
+        return norm
+    raise HTTPException(
+        status_code=402,
+        detail=f"Free plan allows {FREE_TAG_LIMIT} tag per card. Upgrade to Pro for unlimited tags.",
+    )
 
 
 class CheckoutReq(BaseModel):
@@ -1346,6 +1377,9 @@ async def billing_me(user: User = Depends(get_current_user)):
         "is_pro": is_pro,
         "pro_expires_at": doc.get("pro_expires_at") if doc else None,
         "packages": PACKAGES,
+        "limits": {
+            "tags_per_card": (None if is_pro else FREE_TAG_LIMIT),
+        },
     }
 
 

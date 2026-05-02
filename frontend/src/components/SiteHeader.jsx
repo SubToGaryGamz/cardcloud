@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Cloud, LogOut, LayoutDashboard, Eye, User as UserIcon, Sun, Moon, Sparkles } from "lucide-react";
+import { Cloud, LogOut, LayoutDashboard, Eye, User as UserIcon, Sun, Moon, Sparkles, Lock } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -29,7 +29,7 @@ export default function SiteHeader() {
     return () => { revoked = true; if (url) URL.revokeObjectURL(url); };
   }, [user?.avatar_path]);
 
-  const NavLink = ({ to, icon: Icon, label, testId }) => {
+  const NavLink = ({ to, icon: Icon, label, testId, locked = false }) => {
     const active = location.pathname.startsWith(to);
     return (
       <Link
@@ -40,6 +40,7 @@ export default function SiteHeader() {
         }`}
       >
         <Icon className="h-4 w-4" /> {label}
+        {locked && <Lock className="h-3 w-3 ml-0.5 text-[#FFD60A]" />}
       </Link>
     );
   };
@@ -61,7 +62,7 @@ export default function SiteHeader() {
 
         <nav className="flex items-center gap-1 sm:gap-2">
           <NavLink to="/dashboard" icon={LayoutDashboard} label="Vault" testId="nav-vault" />
-          <NavLink to="/watchlist" icon={Eye} label="Watchlist" testId="nav-watchlist" />
+          <NavLink to="/watchlist" icon={Eye} label="Watchlist" testId="nav-watchlist" locked={!isPro} />
           <NavLink to="/profile" icon={UserIcon} label="Profile" testId="nav-profile" />
         </nav>
 
