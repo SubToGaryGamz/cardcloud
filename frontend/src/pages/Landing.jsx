@@ -1,11 +1,14 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Cloud, Trophy, Tag as TagIcon, Eye, Share2, Sparkles,
   TrendingUp, Image as ImageIcon, ArrowRight, CheckCircle2,
   Wallet, ShoppingBag, Zap, BarChart3, FileText, Download, Upload,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import BetaCodeDialog from "../components/BetaCodeDialog";
+import api from "../lib/api";
+import { toast } from "sonner";
 
 const HERO_BG = "https://images.unsplash.com/photo-1642692704112-80f6ba7f6aa3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwyfHxiYXNrZXRiYWxsJTIwY2FyZHxlbnwwfHx8fDE3Nzc2Nzg2Nzd8MA&ixlib=rb-4.1.0&q=85";
 
@@ -26,7 +29,25 @@ const STEPS = [
 
 export default function Landing() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [yearlyOn, setYearlyOn] = React.useState(true);
+  const [betaDialog, setBetaDialog] = React.useState(null); // null | "pro_monthly" | "pro_yearly"
+
+  const proCtaClick = () => {
+    if (!user) { navigate("/login"); return; }
+    setBetaDialog(yearlyOn ? "pro_yearly" : "pro_monthly");
+  };
+
+  const continueToCheckout = async (pkg) => {
+    setBetaDialog(null);
+    try {
+      const r = await api.post("/billing/checkout", { package_id: pkg, origin_url: window.location.origin });
+      if (r.data.url) window.location.href = r.data.url;
+      else toast.error("Could not start checkout");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Checkout failed");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
@@ -302,13 +323,14 @@ export default function Landing() {
                   <li className="flex items-center gap-2"><FileText className="h-4 w-4 text-[#FFD60A] shrink-0" /> IRS Form 8949 tax export (short/long term)</li>
                   <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Cancel anytime · no lock-in</li>
                 </ul>
-                <Link
-                  to={user ? "/profile" : "/login"}
+                <button
+                  type="button"
+                  onClick={proCtaClick}
                   className="mt-8 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide transition shadow-glow-red"
                   data-testid="pricing-pro-cta"
                 >
                   <Sparkles className="h-4 w-4" /> {user ? "Upgrade to Pro" : (yearlyOn ? "Start free trial · Then $65/yr" : "Start 7-day free trial")}
-                </Link>
+                </button>
                 <div className="text-[11px] text-neutral-500 mt-3 uppercase tracking-widest">
                   Secure checkout via Stripe · No card needed to start free
                 </div>
@@ -414,6 +436,14 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      <BetaCodeDialog
+        open={!!betaDialog}
+        onClose={() => setBetaDialog(null)}
+        defaultPackageId={betaDialog || "pro_monthly"}
+        priceLabel={betaDialog === "pro_yearly" ? "Continue · $65/yr" : "Start 7-day free trial"}
+        onContinueToCheckout={continueToCheckout}
+      />
     </div>
   );
 }

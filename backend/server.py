@@ -29,6 +29,15 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 APP_NAME = os.environ.get('APP_NAME', 'cardcloud')
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 
+# Beta program: redeem code → instant Pro access. Env-overridable; defaults to "beta".
+# When more than one code is needed, use a comma-separated list e.g. BETA_INVITE_CODES="beta,founder,vip".
+BETA_INVITE_CODES = {
+    c.strip().lower()
+    for c in os.environ.get('BETA_INVITE_CODES', 'beta').split(',')
+    if c.strip()
+}
+BETA_DAYS = int(os.environ.get('BETA_DAYS', '90'))
+
 # Server-side fixed packages (NEVER take amount from frontend)
 PACKAGES = {
     "pro_monthly": {"amount": 6.00, "currency": "usd", "label": "CardCloud Pro · Monthly", "interval": "monthly"},
@@ -1547,6 +1556,53 @@ async def billing_me(user: User = Depends(get_current_user)):
         "limits": {
             "tags_per_card": (None if is_pro else FREE_TAG_LIMIT),
         },
+        "is_beta": bool(doc and doc.get("beta_redeemed_code")),
+    }
+
+
+class RedeemReq(BaseModel):
+    code: str
+
+
+@api_router.post("/billing/redeem-code")
+async def redeem_code(req: RedeemReq, user: User = Depends(get_current_user)):
+    """Beta-tester redemption: enter a valid invite code → instant Pro access
+    for BETA_DAYS (default 90). Idempotent — re-redeeming the same code by the
+    same user just refreshes the expiry from "now" without resetting other
+    pro state. Does not interact with Stripe."""
+    code = (req.code or "").strip().lower()
+    if not code:
+        raise HTTPException(status_code=400, detail="Please enter a code")
+    if code not in BETA_INVITE_CODES:
+        raise HTTPException(status_code=400, detail="That code isn't valid")
+
+    existing = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    base = datetime.now(timezone.utc)
+    if existing and existing.get("pro_expires_at"):
+        try:
+            cur = datetime.fromisoformat(existing["pro_expires_at"])
+            if cur.tzinfo is None:
+                cur = cur.replace(tzinfo=timezone.utc)
+            if cur > base:
+                base = cur
+        except Exception:
+            pass
+    new_exp = base + timedelta(days=BETA_DAYS)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {
+            "is_pro": True,
+            "pro_expires_at": new_exp.isoformat(),
+            "ever_pro": True,
+            "beta_redeemed_code": code,
+            "beta_redeemed_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    return {
+        "ok": True,
+        "is_pro": True,
+        "pro_expires_at": new_exp.isoformat(),
+        "days_granted": BETA_DAYS,
     }
 
 

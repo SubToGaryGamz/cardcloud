@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import api from "../lib/api";
 import SiteHeader from "../components/SiteHeader";
 import MobileBottomNav from "../components/MobileBottomNav";
+import BetaCodeDialog from "../components/BetaCodeDialog";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -107,6 +108,11 @@ export default function Profile() {
       setSubscribing(false);
     }
   };
+
+  const [betaDialog, setBetaDialog] = useState(null); // null | "pro_monthly" | "pro_yearly"
+  const openBetaDialog = (pkg) => setBetaDialog(pkg);
+  const closeBetaDialog = () => setBetaDialog(null);
+  const continueToCheckout = (pkg) => { closeBetaDialog(); onSubscribe(pkg); };
 
   const proExpiryText = proExpiresAt ? new Date(proExpiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
   const proPrice = packages?.pro_monthly?.amount ?? 6;
@@ -245,7 +251,7 @@ export default function Profile() {
             ) : (
               <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Button
-                  onClick={() => onSubscribe("pro_monthly")}
+                  onClick={() => openBetaDialog("pro_monthly")}
                   disabled={subscribing}
                   className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide shadow-glow-red h-auto py-3 flex-col items-start gap-0.5"
                   data-testid="subscribe-button"
@@ -254,7 +260,7 @@ export default function Profile() {
                   <span className="text-[10px] uppercase tracking-widest opacity-80 font-semibold">Then ${proPrice}/mo · Cancel anytime</span>
                 </Button>
                 <Button
-                  onClick={() => onSubscribe("pro_yearly")}
+                  onClick={() => openBetaDialog("pro_yearly")}
                   disabled={subscribing}
                   className="bg-[#FFD60A] hover:bg-[#FFD60A]/90 text-black font-bold uppercase tracking-wide h-auto py-3 flex-col items-start gap-0.5"
                   data-testid="subscribe-yearly-button"
@@ -269,6 +275,14 @@ export default function Profile() {
       </main>
 
       <MobileBottomNav />
+
+      <BetaCodeDialog
+        open={!!betaDialog}
+        onClose={closeBetaDialog}
+        defaultPackageId={betaDialog || "pro_monthly"}
+        priceLabel={betaDialog === "pro_yearly" ? `Continue · $${yearlyPrice}/yr` : "Start 7-day free trial"}
+        onContinueToCheckout={continueToCheckout}
+      />
     </div>
   );
 }

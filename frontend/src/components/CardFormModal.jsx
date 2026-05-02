@@ -152,6 +152,7 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] uppercase tracking-[0.25em] font-black text-[#FFD60A]">AI scan</span>
+                    <span className="text-[9px] uppercase tracking-widest font-black bg-[#007AFF]/15 text-[#4aa3ff] border border-[#007AFF]/30 px-1.5 py-0.5 rounded-sm" data-testid="ai-scan-beta-badge">Beta</span>
                     {scanFields && scanFields.length > 0 && (
                       <span className="text-[10px] uppercase tracking-widest text-[#34C759] font-bold">✓ Filled {scanFields.length} field{scanFields.length !== 1 ? "s" : ""}</span>
                     )}
