@@ -57,7 +57,14 @@ export default function Dashboard() {
       if (sportFilter !== "all") params.sport = sportFilter;
       if (tagFilter) params.tag = tagFilter;
       const r = await api.get("/cards", { params });
-      setCards(r.data);
+      // Sort: In Collection on top, Sold below — preserve created_at desc within each group
+      const sorted = [...r.data].sort((a, b) => {
+        const sa = a.status === "sold" ? 1 : 0;
+        const sb = b.status === "sold" ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+        return (b.created_at || "").localeCompare(a.created_at || "");
+      });
+      setCards(sorted);
     } catch (e) {
       toast.error("Failed to load cards");
     } finally {

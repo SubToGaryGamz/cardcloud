@@ -104,7 +104,7 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
 
         <span className={`absolute top-3 left-3 text-[10px] px-2 py-1 uppercase tracking-[0.18em] font-bold rounded-sm border backdrop-blur-sm ${
           sold
-            ? (profitPositive ? "bg-[#34C759]/20 text-[#34C759] border-[#34C759]/40" : "bg-[#FF3B30]/20 text-[#FF3B30] border-[#FF3B30]/40")
+            ? "hidden"
             : "bg-[#007AFF]/20 text-[#4aa3ff] border-[#007AFF]/40 ring-1 ring-[#007AFF]/20"
         }`}>
           {sold ? "Sold" : "In Collection"}

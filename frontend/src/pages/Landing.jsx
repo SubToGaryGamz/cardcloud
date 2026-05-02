@@ -217,7 +217,7 @@ export default function Landing() {
                   <span className="h-2.5 w-2.5 rounded-full bg-[#FF3B30]/80" />
                   <span className="h-2.5 w-2.5 rounded-full bg-[#FFCC00]/80" />
                   <span className="h-2.5 w-2.5 rounded-full bg-[#34C759]/80" />
-                  <span className="ml-3 text-[10px] uppercase tracking-widest text-neutral-500 font-mono">cardcloud.app/s/c/c_…</span>
+                  <span className="ml-3 text-[10px] uppercase tracking-widest text-neutral-500 font-mono">cardcloud.app/showcase/lebron-rookie</span>
                 </div>
                 <div className="rounded-md aspect-[4/3] bg-gradient-to-br from-[#1a1a1a] to-[#0c0c0c] border border-white/10 grid place-items-center text-neutral-700">
                   <ImageIcon className="h-12 w-12" strokeWidth={1.5} />
