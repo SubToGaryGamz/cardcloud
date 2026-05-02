@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 3 testing of CardCloud: Sport field + Tags, Watchlist CRUD + Acquire, User profile + avatar, CardCloud rebrand. Backend: 36/36 pytest passed (10 new iteration-3 cases added covering tag/sport filtering, /cards/tags aggregation, CSV import/export with sport+tags, watchlist CRUD, acquire flow, user isolation, profile PATCH, avatar upload). Frontend: Playwright verified login, CardCloud branding with cloud icon on login and header, nav (Vault/Watchlist/Profile), dashboard tag chip row + sport filter + sport badges on cards, CardFormModal has form-sport-select and form-tags-input, /watchlist add-watch-button + watch-form-modal + acquire-button + acquire-modal work end-to-end (watch item created, acquired, converted to card in vault, watch item removed), /profile has profile-name-input / upload-avatar-button / profile-save-button and name save works. All iteration 1 & 2 regressions still green.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard charts", "issues": ["Recharts still emits benign width(-1)/height(-1) warnings on initial mount (from iteration 2, non-blocking)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: wrap recharts ResponsiveContainer in a sized element to silence width(-1) warnings (carried over from iter 2)",
+    "Optional: split server.py (~950 lines) into auth_router / cards_router / watchlist_router / users_router for maintainability"
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~950 lines (auth, cards, watchlist, users, files, storage proxy all in one). Strongly recommend splitting into feature routers now that iteration 3 added more surface area.",
+    "/api/cards/tags aggregation runs per request and unwinds the whole user's cards array. For large collections, add a compound index on (user_id, tags) or cache the result.",
+    "Acquire endpoint is not atomic: insert card then delete watch item are separate awaits. If the delete fails mid-way, the card is created but watch item remains. Consider wrapping in a Motor transaction or deleting first with a rollback compensator.",
+    "_norm_tags silently drops non-string values; if frontend ever sends numeric tag it becomes empty. Consider logging warning for dropped entries.",
+    "ProfileUpdate only supports 'name' — no way to clear picture/avatar_path. OK for now but should be documented; also PATCH ignores empty strings which prevents users from blanking fields by design (good).",
+    "Avatar upload reuses the same /files/{path} route — avatar_path files are user-owned so they're correctly protected, but note that if avatar_path is rotated the old file is not marked is_deleted (minor orphan accumulation).",
+    "GET /api/cards uses 'tags': tag (exact match) — good, but does not normalize the incoming tag to lowercase; a user passing ?tag=Rookie (capital) would return 0 results. Consider normalizing in the handler too, not only on write.",
+    "APP_NAME env defaults to 'cardcloud' in server.py but README/branding references should be verified (test_credentials.md still says 'CardVault')."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added 10 iteration-3 pytest cases)"
+  ],
+  "success_rate": {"backend": "100% (36/36)", "frontend": "100% on tested flows"},
+  "test_credentials": "demo@example.com / demo1234 (seeded, used for all auth-bound tests). NOTE: /app/memory/test_credentials.md still references 'CardVault' in the heading — consider updating to 'CardCloud'.",
+  "seed_data_creation": "Tests create TEST_I3_* and TEST_E2E_* data and clean up. Playwright also deletes TEST_E2E_Watch_Item card afterwards via API. No residual test data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 36 backend tests pass and cover: auth (login/register/me/duplicate/invalid), cards CRUD + filters (q, year, status, tag, sport), /cards/tags aggregation, stats (with since variants), timeseries (default 12 + custom months), CSV export (checks for Purchased Date, Sold Date, Sport, Tags headers), CSV import (happy path + underscore headers + invalid-rows-skipped + non-csv-reject + sport/tags columns), image upload+serve, user isolation (cards + watchlist), quick-sell (default+explicit date+404), sport+tags create/update with normalization (lowercase+dedup), watchlist CRUD, watchlist acquire (creates card with inherited fields + deletes watch item), watchlist user isolation, PATCH /users/me, POST /users/me/avatar (verified avatar_path saved on user + served via /files). Frontend Playwright confirmed CardCloud brand+cloud logo on login & header, Vault/Watchlist/Profile nav, form-sport-select, form-tags-input, add-watch-button, watch-form-modal, acquire-button-*, acquire-modal, profile-name-input, upload-avatar-button, profile-save-button. Minor note: tag-chip click test used ambiguous selector prefix; manual screenshot confirms tag chips render (ROOKIE 2, CHIEFS 1, JA MORANT 1, GRIZZLIES 1) — clicking them should set active-tag-filter (not independently verified in automation, main agent can self-verify).",
+  "rca of the issue": "No bugs found. All iteration-3 features (sport/tags on cards, tag aggregation, tag/sport filters, CSV export/import columns, watchlist CRUD, acquire flow with watch-item deletion, profile PATCH, avatar upload, CardCloud rebrand with cloud icon in Login + SiteHeader) work as specified. Iteration 1 & 2 regressions green."
+}

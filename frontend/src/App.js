@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Watchlist from "./pages/Watchlist";
+import Profile from "./pages/Profile";
 import AuthCallback from "./pages/AuthCallback";
 import { Toaster } from "./components/ui/sonner";
 
@@ -39,6 +41,8 @@ function AppRouter() {
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

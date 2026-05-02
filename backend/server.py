@@ -26,7 +26,7 @@ db = client[os.environ['DB_NAME']]
 
 JWT_SECRET = os.environ['JWT_SECRET']
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
-APP_NAME = os.environ.get('APP_NAME', 'cardvault')
+APP_NAME = os.environ.get('APP_NAME', 'cardcloud')
 
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 EMERGENT_AUTH_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
@@ -94,6 +94,7 @@ class User(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
+    avatar_path: Optional[str] = None
     auth_provider: str  # "email" | "google"
     created_at: str
 
@@ -130,8 +131,11 @@ class Card(BaseModel):
     expenses: float = 0.0
     status: str = "in_collection"  # in_collection | sold
     image_path: Optional[str] = None
-    purchased_date: Optional[str] = None  # ISO date YYYY-MM-DD
-    sold_date: Optional[str] = None  # ISO date YYYY-MM-DD
+    images: List[str] = []  # multi-image support (additional images)
+    purchased_date: Optional[str] = None
+    sold_date: Optional[str] = None
+    sport: Optional[str] = None
+    tags: List[str] = []
     created_at: str
     updated_at: str
 
@@ -146,6 +150,8 @@ class CardCreate(BaseModel):
     status: str = "in_collection"
     purchased_date: Optional[str] = None
     sold_date: Optional[str] = None
+    sport: Optional[str] = None
+    tags: List[str] = []
 
 
 class CardUpdate(BaseModel):
@@ -158,12 +164,57 @@ class CardUpdate(BaseModel):
     status: Optional[str] = None
     purchased_date: Optional[str] = None
     sold_date: Optional[str] = None
+    sport: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class QuickSellReq(BaseModel):
     price_sold: float
     extra_expenses: float = 0.0
     sold_date: Optional[str] = None
+
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class WatchItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    user_id: str
+    year: int
+    name: str
+    sport: Optional[str] = None
+    tags: List[str] = []
+    target_price: Optional[float] = None
+    notes: Optional[str] = ""
+    created_at: str
+    updated_at: str
+
+
+class WatchItemCreate(BaseModel):
+    year: int
+    name: str
+    sport: Optional[str] = None
+    tags: List[str] = []
+    target_price: Optional[float] = None
+    notes: Optional[str] = ""
+
+
+class WatchItemUpdate(BaseModel):
+    year: Optional[int] = None
+    name: Optional[str] = None
+    sport: Optional[str] = None
+    tags: Optional[List[str]] = None
+    target_price: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class AcquireReq(BaseModel):
+    price_paid: float
+    where_bought: Optional[str] = ""
+    expenses: float = 0.0
+    purchased_date: Optional[str] = None
 
 
 # ============ App ============
@@ -328,6 +379,24 @@ async def logout(authorization: Optional[str] = Header(None)):
 
 
 # ============ Card routes ============
+def _norm_tags(tags) -> List[str]:
+    if not tags:
+        return []
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",")]
+    seen = set()
+    out = []
+    for t in tags:
+        if not t:
+            continue
+        t = str(t).strip().lower()
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+    return out
+
+
 def _card_doc(payload: dict, user_id: str, existing: Optional[dict] = None) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     if existing:
@@ -345,8 +414,11 @@ def _card_doc(payload: dict, user_id: str, existing: Optional[dict] = None) -> d
         "expenses": float(payload.get("expenses") or 0),
         "status": payload.get("status") or "in_collection",
         "image_path": None,
+        "images": [],
         "purchased_date": payload.get("purchased_date") or None,
         "sold_date": payload.get("sold_date") or None,
+        "sport": (payload.get("sport") or None),
+        "tags": _norm_tags(payload.get("tags")),
         "created_at": now,
         "updated_at": now,
     }
@@ -364,17 +436,39 @@ async def list_cards(
     q: Optional[str] = None,
     status: Optional[str] = None,
     year: Optional[int] = None,
+    tag: Optional[str] = None,
+    sport: Optional[str] = None,
     user: User = Depends(get_current_user),
 ):
-    filt = {"user_id": user.user_id}
+    filt: dict = {"user_id": user.user_id}
     if status and status in ("in_collection", "sold"):
         filt["status"] = status
     if year:
         filt["year"] = year
+    if sport:
+        filt["sport"] = sport
+    if tag:
+        filt["tags"] = tag.strip().lower()
     if q:
-        filt["name"] = {"$regex": q, "$options": "i"}
+        qr = {"$regex": q, "$options": "i"}
+        filt["$or"] = [{"name": qr}, {"tags": qr}, {"sport": qr}]
     docs = await db.cards.find(filt, {"_id": 0}).sort("created_at", -1).to_list(2000)
     return [Card(**d) for d in docs]
+
+
+@api_router.get("/cards/tags")
+async def list_tags(user: User = Depends(get_current_user)):
+    pipeline = [
+        {"$match": {"user_id": user.user_id}},
+        {"$unwind": "$tags"},
+        {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 100},
+    ]
+    out = []
+    async for row in db.cards.aggregate(pipeline):
+        out.append({"tag": row["_id"], "count": row["count"]})
+    return out
 
 
 def _since_cutoff(since):
@@ -509,12 +603,15 @@ async def export_cards_csv(user: User = Depends(get_current_user)):
     docs = await db.cards.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(5000)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Year", "Name", "Where Bought", "Price Paid", "Price Sold", "Expenses", "Status", "Purchased Date", "Sold Date", "Profit", "Created"])
+    writer.writerow(["Year", "Name", "Sport", "Tags", "Where Bought", "Price Paid", "Price Sold", "Expenses", "Status", "Purchased Date", "Sold Date", "Profit", "Created"])
     for d in docs:
         sold = float(d.get("price_sold") or 0) if d.get("status") == "sold" else 0
         profit = sold - float(d.get("price_paid") or 0) - float(d.get("expenses") or 0) if d.get("status") == "sold" else 0
         writer.writerow([
-            d.get("year"), d.get("name"), d.get("where_bought") or "",
+            d.get("year"), d.get("name"),
+            d.get("sport") or "",
+            ",".join(d.get("tags") or []),
+            d.get("where_bought") or "",
             d.get("price_paid") or 0, d.get("price_sold") or "",
             d.get("expenses") or 0, d.get("status"),
             d.get("purchased_date") or "",
@@ -543,6 +640,8 @@ async def update_card(card_id: str, payload: CardUpdate, user: User = Depends(ge
     if not existing:
         raise HTTPException(status_code=404, detail="Card not found")
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if "tags" in updates:
+        updates["tags"] = _norm_tags(updates["tags"])
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.cards.update_one({"id": card_id, "user_id": user.user_id}, {"$set": updates})
     new_doc = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
@@ -564,7 +663,7 @@ async def delete_card(card_id: str, user: User = Depends(get_current_user)):
 
 
 @api_router.post("/cards/{card_id}/image", response_model=Card)
-async def upload_card_image(card_id: str, file: UploadFile = File(...), user: User = Depends(get_current_user)):
+async def upload_card_image(card_id: str, file: UploadFile = File(...), replace: bool = True, user: User = Depends(get_current_user)):
     existing = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -588,12 +687,40 @@ async def upload_card_image(card_id: str, file: UploadFile = File(...), user: Us
         "is_deleted": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
-    await db.cards.update_one(
-        {"id": card_id, "user_id": user.user_id},
-        {"$set": {"image_path": result["path"], "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
+    update_ops: dict = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if replace or not existing.get("image_path"):
+        update_ops["image_path"] = result["path"]
+        await db.cards.update_one({"id": card_id, "user_id": user.user_id}, {"$set": update_ops})
+    else:
+        await db.cards.update_one(
+            {"id": card_id, "user_id": user.user_id},
+            {"$set": update_ops, "$push": {"images": result["path"]}}
+        )
     new_doc = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
     return Card(**new_doc)
+
+
+@api_router.delete("/cards/{card_id}/image")
+async def delete_card_image(card_id: str, path: Optional[str] = None, user: User = Depends(get_current_user)):
+    existing = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Card not found")
+    target = path or existing.get("image_path")
+    if not target:
+        return {"ok": True}
+    await db.files.update_one({"storage_path": target}, {"$set": {"is_deleted": True}})
+    update_ops: dict = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    set_ops: dict = {}
+    pull_ops: dict = {}
+    if existing.get("image_path") == target:
+        set_ops["image_path"] = None
+    if target in (existing.get("images") or []):
+        pull_ops["images"] = target
+    payload: dict = {"$set": {**update_ops, **set_ops}}
+    if pull_ops:
+        payload["$pull"] = pull_ops
+    await db.cards.update_one({"id": card_id, "user_id": user.user_id}, payload)
+    return {"ok": True}
 
 
 @api_router.post("/cards/{card_id}/quick-sell", response_model=Card)
@@ -667,14 +794,130 @@ async def import_cards(file: UploadFile = File(...), user: User = Depends(get_cu
             "expenses": _num(r.get("expenses")),
             "status": status,
             "image_path": None,
+            "images": [],
             "purchased_date": (r.get("purchased date") or r.get("purchased_date") or "") or None,
             "sold_date": (r.get("sold date") or r.get("sold_date") or "") or None,
+            "sport": (r.get("sport") or "") or None,
+            "tags": _norm_tags(r.get("tags") or ""),
             "created_at": now_iso,
             "updated_at": now_iso,
         }
         await db.cards.insert_one(doc)
         imported += 1
     return {"imported": imported, "skipped": skipped, "errors": errors[:20]}
+
+
+# ============ User Profile ============
+@api_router.patch("/users/me", response_model=User)
+async def update_profile(payload: ProfileUpdate, user: User = Depends(get_current_user)):
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None and v != ""}
+    if updates:
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.users.update_one({"user_id": user.user_id}, {"$set": updates})
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "password_hash": 0})
+    return User(**doc)
+
+
+@api_router.post("/users/me/avatar", response_model=User)
+async def upload_avatar(file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    ext = (file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "bin").lower()
+    if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+        raise HTTPException(status_code=400, detail="Unsupported image format")
+    path = f"{APP_NAME}/avatars/{user.user_id}/{uuid.uuid4().hex}.{ext}"
+    data = await file.read()
+    if len(data) > 4 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Avatar too large (max 4MB)")
+    result = put_object(path, data, file.content_type or f"image/{ext}")
+    await db.files.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user.user_id,
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": file.content_type,
+        "size": result.get("size"),
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"avatar_path": result["path"]}}
+    )
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "password_hash": 0})
+    return User(**doc)
+
+
+# ============ Watchlist ============
+def _watch_doc(payload: dict, user_id: str) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "year": payload.get("year"),
+        "name": payload.get("name"),
+        "sport": payload.get("sport") or None,
+        "tags": _norm_tags(payload.get("tags")),
+        "target_price": payload.get("target_price"),
+        "notes": payload.get("notes") or "",
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+@api_router.get("/watchlist", response_model=List[WatchItem])
+async def list_watchlist(user: User = Depends(get_current_user)):
+    docs = await db.watchlist.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return [WatchItem(**d) for d in docs]
+
+
+@api_router.post("/watchlist", response_model=WatchItem)
+async def create_watch(payload: WatchItemCreate, user: User = Depends(get_current_user)):
+    doc = _watch_doc(payload.model_dump(), user.user_id)
+    await db.watchlist.insert_one(doc)
+    return WatchItem(**{k: v for k, v in doc.items() if k != "_id"})
+
+
+@api_router.put("/watchlist/{item_id}", response_model=WatchItem)
+async def update_watch(item_id: str, payload: WatchItemUpdate, user: User = Depends(get_current_user)):
+    existing = await db.watchlist.find_one({"id": item_id, "user_id": user.user_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if "tags" in updates:
+        updates["tags"] = _norm_tags(updates["tags"])
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.watchlist.update_one({"id": item_id, "user_id": user.user_id}, {"$set": updates})
+    new_doc = await db.watchlist.find_one({"id": item_id, "user_id": user.user_id}, {"_id": 0})
+    return WatchItem(**new_doc)
+
+
+@api_router.delete("/watchlist/{item_id}")
+async def delete_watch(item_id: str, user: User = Depends(get_current_user)):
+    r = await db.watchlist.delete_one({"id": item_id, "user_id": user.user_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    return {"ok": True}
+
+
+@api_router.post("/watchlist/{item_id}/acquire", response_model=Card)
+async def acquire_watch(item_id: str, req: AcquireReq, user: User = Depends(get_current_user)):
+    existing = await db.watchlist.find_one({"id": item_id, "user_id": user.user_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    payload = {
+        "year": existing["year"],
+        "name": existing["name"],
+        "sport": existing.get("sport"),
+        "tags": existing.get("tags") or [],
+        "where_bought": req.where_bought or "",
+        "price_paid": float(req.price_paid),
+        "expenses": float(req.expenses or 0),
+        "status": "in_collection",
+        "purchased_date": req.purchased_date or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    }
+    doc = _card_doc(payload, user.user_id)
+    await db.cards.insert_one(doc)
+    await db.watchlist.delete_one({"id": item_id, "user_id": user.user_id})
+    return Card(**{k: v for k, v in doc.items() if k != "_id"})
 
 
 
@@ -693,7 +936,7 @@ async def serve_file(path: str, authorization: Optional[str] = Header(None), aut
 
 @api_router.get("/")
 async def root():
-    return {"app": "CardVault", "ok": True}
+    return {"app": "CardCloud", "ok": True}
 
 
 app.include_router(api_router)

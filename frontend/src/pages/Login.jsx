@@ -7,7 +7,7 @@ import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { toast } from "sonner";
-import { Trophy, Mail, Lock, User as UserIcon } from "lucide-react";
+import { Cloud, Mail, Lock, User as UserIcon } from "lucide-react";
 import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -66,16 +66,16 @@ export default function Login() {
         <div className="absolute inset-0 bg-gradient-to-tr from-black via-black/70 to-transparent" />
         <div className="relative z-10 max-w-md">
           <div className="flex items-center gap-2 mb-6">
-            <div className="h-10 w-10 rounded-md bg-[#FF3B30] grid place-items-center">
-              <Trophy className="h-5 w-5 text-white" strokeWidth={2.5} />
+            <div className="h-10 w-10 rounded-md bg-gradient-to-br from-[#FF3B30] to-[#B3261E] grid place-items-center shadow-glow-red">
+              <Cloud className="h-5 w-5 text-white" strokeWidth={2.5} fill="white" fillOpacity={0.15} />
             </div>
-            <span className="font-display text-2xl tracking-tight font-black uppercase">CardVault</span>
+            <span className="font-display text-2xl tracking-tight font-black uppercase">CardCloud</span>
           </div>
           <h1 className="font-display text-5xl xl:text-6xl tracking-tighter font-black uppercase leading-[0.95]">
-            Track every<br />card. Win every<br />flip.
+            Your collection,<br />in the cloud.<br />Profits, tracked.
           </h1>
           <p className="mt-6 text-neutral-300 text-base max-w-sm">
-            Your private dashboard for the sports card grind. Costs in. Sales out. Profit clear as day.
+            Every card. Every flip. Costs in, sales out, profit clear as day.
           </p>
         </div>
       </div>
@@ -84,10 +84,10 @@ export default function Login() {
       <div className="flex items-center justify-center p-6 sm:p-12">
         <Card className="w-full max-w-md bg-[#141414] border-white/10 p-8 fade-up">
           <div className="lg:hidden mb-6 flex items-center gap-2">
-            <div className="h-9 w-9 rounded-md bg-[#FF3B30] grid place-items-center">
-              <Trophy className="h-4 w-4 text-white" strokeWidth={2.5} />
+            <div className="h-9 w-9 rounded-md bg-gradient-to-br from-[#FF3B30] to-[#B3261E] grid place-items-center shadow-glow-red">
+              <Cloud className="h-4 w-4 text-white" strokeWidth={2.5} fill="white" fillOpacity={0.15} />
             </div>
-            <span className="font-display text-xl tracking-tight font-black uppercase">CardVault</span>
+            <span className="font-display text-xl tracking-tight font-black uppercase">CardCloud</span>
           </div>
           <div className="mb-6">
             <div className="text-xs tracking-[0.3em] uppercase text-neutral-500 font-semibold">Members area</div>

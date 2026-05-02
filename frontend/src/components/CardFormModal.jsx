@@ -5,8 +5,22 @@ import { Label } from "./ui/label";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Upload, Image as ImageIcon } from "lucide-react";
+import TagInput from "./TagInput";
+import { SPORTS } from "../lib/sports";
 
-const empty = { year: new Date().getFullYear(), name: "", where_bought: "", price_paid: "", price_sold: "", expenses: "", status: "in_collection", purchased_date: "", sold_date: "" };
+const empty = {
+  year: new Date().getFullYear(),
+  name: "",
+  sport: "",
+  tags: [],
+  where_bought: "",
+  price_paid: "",
+  price_sold: "",
+  expenses: "",
+  status: "in_collection",
+  purchased_date: "",
+  sold_date: "",
+};
 
 export default function CardFormModal({ open, onClose, onSave, card }) {
   const [form, setForm] = useState(empty);
@@ -19,6 +33,8 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
       setForm({
         year: card.year,
         name: card.name,
+        sport: card.sport || "",
+        tags: card.tags || [],
         where_bought: card.where_bought || "",
         price_paid: card.price_paid ?? "",
         price_sold: card.price_sold ?? "",
@@ -48,6 +64,8 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
       const payload = {
         year: parseInt(form.year, 10),
         name: form.name.trim(),
+        sport: form.sport || null,
+        tags: form.tags || [],
         where_bought: form.where_bought.trim(),
         price_paid: parseFloat(form.price_paid || 0) || 0,
         price_sold: form.price_sold === "" ? null : parseFloat(form.price_sold) || 0,
@@ -64,7 +82,7 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="bg-[#141414] border-white/10 text-white sm:max-w-lg" data-testid="card-form-modal">
+      <DialogContent className="bg-[#141414] border-white/10 text-white sm:max-w-xl max-h-[92vh] overflow-y-auto" data-testid="card-form-modal">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl tracking-tight font-black uppercase">
             {card ? "Edit card" : "Add a card"}
@@ -72,7 +90,7 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-1">
+            <div>
               <Label className="text-xs tracking-widest uppercase text-neutral-400">Year</Label>
               <Input type="number" required value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} className="bg-[#0A0A0A] border-white/10 mt-1.5" data-testid="form-year-input" />
             </div>
@@ -82,9 +100,30 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs tracking-widest uppercase text-neutral-400">Sport</Label>
+              <Select value={form.sport} onValueChange={(v) => setForm({ ...form, sport: v })}>
+                <SelectTrigger className="bg-[#0A0A0A] border-white/10 mt-1.5" data-testid="form-sport-select">
+                  <SelectValue placeholder="Choose sport" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#141414] border-white/10 text-white max-h-64">
+                  {SPORTS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs tracking-widest uppercase text-neutral-400">Where bought</Label>
+              <Input value={form.where_bought} onChange={(e) => setForm({ ...form, where_bought: e.target.value })} className="bg-[#0A0A0A] border-white/10 mt-1.5" placeholder="eBay, COMC, local show…" data-testid="form-where-bought-input" />
+            </div>
+          </div>
+
           <div>
-            <Label className="text-xs tracking-widest uppercase text-neutral-400">Where bought</Label>
-            <Input value={form.where_bought} onChange={(e) => setForm({ ...form, where_bought: e.target.value })} className="bg-[#0A0A0A] border-white/10 mt-1.5" placeholder="eBay, COMC, local show…" data-testid="form-where-bought-input" />
+            <Label className="text-xs tracking-widest uppercase text-neutral-400">Tags</Label>
+            <TagInput value={form.tags} onChange={(v) => setForm({ ...form, tags: v })} placeholder="e.g. team, player, rookie, holo…" testId="form-tags-input" />
+            <p className="text-[11px] text-neutral-500 mt-1.5">Press Enter or comma to add. Use team, player, set, parallel, etc.</p>
           </div>
 
           <div className="grid grid-cols-3 gap-3">

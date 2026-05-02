@@ -362,3 +362,213 @@ def test_export_csv_has_date_columns(auth_headers):
     header = r.text.split("\n", 1)[0]
     assert "Purchased Date" in header
     assert "Sold Date" in header
+
+
+
+# ============ Iteration 3 features: sport/tags, watchlist, profile ============
+
+def test_create_card_with_sport_and_tags(auth_headers):
+    payload = {
+        "year": 2020, "name": "TEST_I3_Card", "price_paid": 20.0,
+        "sport": "Baseball",
+        "tags": ["Rookie", "rookie", "PSA 10", " Auto "]  # expect lowercase + dedup
+    }
+    r = requests.post(f"{API}/cards", headers=auth_headers, json=payload)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["sport"] == "Baseball"
+    assert d["tags"] == ["rookie", "psa 10", "auto"]
+    cid = d["id"]
+    # PUT update tags+sport
+    r2 = requests.put(f"{API}/cards/{cid}", headers=auth_headers,
+                      json={"sport": "Basketball", "tags": ["HOF", "hof", "GRADED"]})
+    assert r2.status_code == 200
+    assert r2.json()["sport"] == "Basketball"
+    assert r2.json()["tags"] == ["hof", "graded"]
+    # GET confirms persistence
+    g = requests.get(f"{API}/cards/{cid}", headers=auth_headers)
+    assert g.json()["sport"] == "Basketball"
+    assert "hof" in g.json()["tags"]
+    requests.delete(f"{API}/cards/{cid}", headers=auth_headers)
+
+
+def test_filter_by_tag_and_sport_and_search(auth_headers):
+    r1 = requests.post(f"{API}/cards", headers=auth_headers,
+                       json={"year": 2019, "name": "TEST_I3_FilterA", "price_paid": 5,
+                             "sport": "Hockey", "tags": ["goalie", "vintage"]})
+    r2 = requests.post(f"{API}/cards", headers=auth_headers,
+                       json={"year": 2018, "name": "TEST_I3_FilterB", "price_paid": 5,
+                             "sport": "Soccer", "tags": ["star"]})
+    a, b = r1.json()["id"], r2.json()["id"]
+    # tag filter
+    g = requests.get(f"{API}/cards?tag=goalie", headers=auth_headers)
+    ids = [c["id"] for c in g.json()]
+    assert a in ids and b not in ids
+    # sport filter
+    g2 = requests.get(f"{API}/cards?sport=Soccer", headers=auth_headers)
+    ids2 = [c["id"] for c in g2.json()]
+    assert b in ids2 and a not in ids2
+    # q searches tags
+    g3 = requests.get(f"{API}/cards?q=vintage", headers=auth_headers)
+    assert any(c["id"] == a for c in g3.json())
+    # q searches sport
+    g4 = requests.get(f"{API}/cards?q=Hockey", headers=auth_headers)
+    assert any(c["id"] == a for c in g4.json())
+    # cleanup
+    requests.delete(f"{API}/cards/{a}", headers=auth_headers)
+    requests.delete(f"{API}/cards/{b}", headers=auth_headers)
+
+
+def test_tags_aggregation(auth_headers):
+    r1 = requests.post(f"{API}/cards", headers=auth_headers,
+                       json={"year": 2020, "name": "TEST_I3_Agg1", "price_paid": 1,
+                             "tags": ["test_i3_tag", "shared"]})
+    r2 = requests.post(f"{API}/cards", headers=auth_headers,
+                       json={"year": 2020, "name": "TEST_I3_Agg2", "price_paid": 1,
+                             "tags": ["test_i3_tag"]})
+    rr = requests.get(f"{API}/cards/tags", headers=auth_headers)
+    assert rr.status_code == 200
+    tags = {row["tag"]: row["count"] for row in rr.json()}
+    assert tags.get("test_i3_tag", 0) >= 2
+    requests.delete(f"{API}/cards/{r1.json()['id']}", headers=auth_headers)
+    requests.delete(f"{API}/cards/{r2.json()['id']}", headers=auth_headers)
+
+
+def test_export_csv_has_sport_tags(auth_headers):
+    r = requests.get(f"{API}/cards/export.csv", headers=auth_headers)
+    assert r.status_code == 200
+    header = r.text.split("\n", 1)[0]
+    assert "Sport" in header
+    assert "Tags" in header
+
+
+def test_import_csv_with_sport_tags(demo_token):
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    csv_text = (
+        "Year,Name,Sport,Tags,Price Paid,Status\n"
+        "2022,TEST_I3_ImportSport,Baseball,\"rookie,auto,psa10\",10,in_collection\n"
+    ).encode("utf-8")
+    files = {"file": ("i3.csv", csv_text, "text/csv")}
+    r = requests.post(f"{API}/cards/import", headers=headers, files=files)
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    g = requests.get(f"{API}/cards", headers=headers, params={"q": "TEST_I3_ImportSport"})
+    cards = g.json()
+    assert len(cards) == 1
+    c = cards[0]
+    assert c["sport"] == "Baseball"
+    assert set(c["tags"]) == {"rookie", "auto", "psa10"}
+    requests.delete(f"{API}/cards/{c['id']}", headers=headers)
+
+
+# Watchlist CRUD
+def test_watchlist_crud(auth_headers):
+    # list (initial)
+    r0 = requests.get(f"{API}/watchlist", headers=auth_headers)
+    assert r0.status_code == 200
+    # create
+    rc = requests.post(f"{API}/watchlist", headers=auth_headers,
+                       json={"year": 2024, "name": "TEST_I3_Watch", "sport": "Football",
+                             "tags": ["Rookie"], "target_price": 50.0, "notes": "watchme"})
+    assert rc.status_code == 200
+    w = rc.json()
+    assert w["sport"] == "Football"
+    assert w["tags"] == ["rookie"]
+    assert w["target_price"] == 50.0
+    wid = w["id"]
+    # list includes it
+    rl = requests.get(f"{API}/watchlist", headers=auth_headers)
+    assert any(i["id"] == wid for i in rl.json())
+    # update
+    ru = requests.put(f"{API}/watchlist/{wid}", headers=auth_headers,
+                      json={"target_price": 75.0, "tags": ["HOF"]})
+    assert ru.status_code == 200
+    assert ru.json()["target_price"] == 75.0
+    assert ru.json()["tags"] == ["hof"]
+    # delete
+    rd = requests.delete(f"{API}/watchlist/{wid}", headers=auth_headers)
+    assert rd.status_code == 200
+    # gone
+    rl2 = requests.get(f"{API}/watchlist", headers=auth_headers)
+    assert not any(i["id"] == wid for i in rl2.json())
+
+
+def test_watchlist_acquire_flow(auth_headers):
+    # create watch
+    rc = requests.post(f"{API}/watchlist", headers=auth_headers,
+                       json={"year": 2021, "name": "TEST_I3_Acquire", "sport": "Basketball",
+                             "tags": ["rookie"], "target_price": 100.0})
+    wid = rc.json()["id"]
+    # acquire
+    ra = requests.post(f"{API}/watchlist/{wid}/acquire", headers=auth_headers,
+                      json={"price_paid": 90.0, "where_bought": "eBay", "expenses": 2.5})
+    assert ra.status_code == 200, ra.text
+    card = ra.json()
+    assert card["name"] == "TEST_I3_Acquire"
+    assert card["year"] == 2021
+    assert card["sport"] == "Basketball"
+    assert card["tags"] == ["rookie"]
+    assert card["status"] == "in_collection"
+    assert card["price_paid"] == 90.0
+    # watch item removed
+    rl = requests.get(f"{API}/watchlist", headers=auth_headers)
+    assert not any(i["id"] == wid for i in rl.json())
+    # cleanup card
+    requests.delete(f"{API}/cards/{card['id']}", headers=auth_headers)
+
+
+def test_watchlist_user_isolation(auth_headers, second_user):
+    token2, _ = second_user
+    h2 = {"Authorization": f"Bearer {token2}", "Content-Type": "application/json"}
+    rc = requests.post(f"{API}/watchlist", headers=auth_headers,
+                       json={"year": 2024, "name": "TEST_I3_WatchIso"})
+    wid = rc.json()["id"]
+    # other user cannot see
+    r2 = requests.get(f"{API}/watchlist", headers=h2)
+    assert all(i["id"] != wid for i in r2.json())
+    # cannot update
+    ru = requests.put(f"{API}/watchlist/{wid}", headers=h2, json={"name": "hack"})
+    assert ru.status_code == 404
+    # cannot delete
+    rd = requests.delete(f"{API}/watchlist/{wid}", headers=h2)
+    assert rd.status_code == 404
+    # cannot acquire
+    ra = requests.post(f"{API}/watchlist/{wid}/acquire", headers=h2, json={"price_paid": 1})
+    assert ra.status_code == 404
+    # cleanup by owner
+    requests.delete(f"{API}/watchlist/{wid}", headers=auth_headers)
+
+
+# Profile PATCH
+def test_patch_user_me(auth_headers):
+    # get current name
+    r0 = requests.get(f"{API}/auth/me", headers=auth_headers)
+    original = r0.json()["name"]
+    try:
+        rp = requests.patch(f"{API}/users/me", headers=auth_headers,
+                            json={"name": "Demo Updated"})
+        assert rp.status_code == 200, rp.text
+        assert rp.json()["name"] == "Demo Updated"
+        # auth/me reflects change
+        rm = requests.get(f"{API}/auth/me", headers=auth_headers)
+        assert rm.json()["name"] == "Demo Updated"
+    finally:
+        # restore
+        requests.patch(f"{API}/users/me", headers=auth_headers, json={"name": original})
+
+
+# Avatar upload
+def test_upload_avatar(demo_token):
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    png = bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6300010000000500010d0a2db40000000049454e44ae426082")
+    files = {"file": ("avatar.png", png, "image/png")}
+    r = requests.post(f"{API}/users/me/avatar", headers=headers, files=files)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d.get("avatar_path")
+    # /auth/me returns avatar_path
+    rm = requests.get(f"{API}/auth/me", headers=headers)
+    assert rm.json().get("avatar_path") == d["avatar_path"]
+    # can serve the avatar via /files
+    rf = requests.get(f"{API}/files/{d['avatar_path']}", headers=headers)
+    assert rf.status_code == 200
