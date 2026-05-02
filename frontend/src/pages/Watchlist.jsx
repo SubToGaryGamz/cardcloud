@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Eye, Plus, Target, Trash2, Pencil, ShoppingBag, Tag as TagIcon, ExternalLink, Lock, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import TagInput from "../components/TagInput";
+import MobileBottomNav from "../components/MobileBottomNav";
 import { SPORTS } from "../lib/sports";
 import { useBilling } from "../context/BillingContext";
 import { useNavigate } from "react-router-dom";
@@ -220,7 +221,7 @@ export default function Watchlist() {
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
       <SiteHeader />
       {!isPro ? (
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-12 lg:py-20 relative z-10" data-testid="watchlist-paywall">
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-12 lg:py-20 pb-24 md:pb-12 relative z-10" data-testid="watchlist-paywall">
           <div className="rounded-xl bg-gradient-to-br from-[#FFD60A]/15 via-[#141414] to-[#141414] border border-[#FFD60A]/40 p-8 sm:p-10 lg:p-14 relative overflow-hidden shadow-glow-red">
             <div className="absolute top-0 right-0 -translate-y-1/3 translate-x-1/3 h-64 w-64 rounded-full bg-[#FFD60A]/20 blur-3xl pointer-events-none" />
             <div className="relative">
@@ -263,7 +264,7 @@ export default function Watchlist() {
           </div>
         </main>
       ) : (
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 pb-24 md:pb-12 relative z-10">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
             <div className="text-xs tracking-[0.3em] uppercase text-neutral-500 font-semibold flex items-center gap-2"><Eye className="h-3.5 w-3.5" /> Watchlist</div>
@@ -345,6 +346,8 @@ export default function Watchlist() {
 
       <WatchForm open={modalOpen} onClose={() => { setModalOpen(false); setEditing(null); }} onSave={onSave} item={editing} />
       <AcquireModal open={!!acquiring} item={acquiring} onClose={() => setAcquiring(null)} onDone={load} />
+
+      <MobileBottomNav />
     </div>
   );
 }

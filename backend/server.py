@@ -718,6 +718,110 @@ async def delete_card(card_id: str, user: User = Depends(get_current_user)):
     return {"ok": True}
 
 
+@api_router.post("/cards/scan-image")
+async def scan_card_image(file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    """Vision-LLM card-photo intake.
+
+    Accepts a JPEG/PNG/WEBP image of a sports card, asks Claude Sonnet 4.5
+    (vision) to extract structured fields, and returns them as JSON for the
+    Add Card form to pre-fill. Does not save anything to the user's vault.
+    """
+    ext = (file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "").lower()
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        raise HTTPException(status_code=400, detail="Use JPEG, PNG, or WEBP")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty image")
+    if len(raw) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Image too large (max 8 MB)")
+
+    import base64 as _b64
+    img_b64 = _b64.b64encode(raw).decode("ascii")
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Vision LLM unavailable: {e}")
+
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY not configured")
+
+    prompt = (
+        "You are a sports-trading-card cataloguer. Look at this card image and "
+        "extract structured fields. Respond with ONLY a single compact JSON object "
+        "with these keys (no commentary, no markdown fences):\n"
+        '{ "year": int|null, "name": "Player Name", '
+        '"sport": one of ["Basketball","Baseball","Football","Hockey","Soccer","Pokemon","Other"]|null, '
+        '"set": "Set / brand if printed (e.g. Topps Chrome, Panini Prizm) — else null", '
+        '"tags": [up to 5 short lowercase tags such as team, brand, parallel, rookie/auto/relic flags], '
+        '"condition_suggestion": "Raw — Near Mint" or null, '
+        '"confidence": 0.0–1.0 }\n\n'
+        "Rules:\n"
+        "- Read text PRINTED ON THE CARD ITSELF; ignore watermarks, sleeves, holders.\n"
+        '- For modern Topps/Panini/Upper Deck cards, infer "set" from the logo on the card.\n'
+        "- Year: prefer the printed copyright year on the card; if a year range is shown (e.g. 2003-2004), use the first.\n"
+        '- Always include "rookie" in tags if the card says "Rookie", "RC", or "Draft Pick #1".\n'
+        "- Always include the team in tags (lowercase, e.g. \"cavaliers\").\n"
+        "- If the image is not a sports trading card, return all fields null and confidence 0."
+    )
+
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"scan-{user.user_id}-{uuid.uuid4().hex[:8]}",
+            system_message="You output only valid JSON — no markdown, no commentary."
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        reply = await chat.send_message(UserMessage(
+            text=prompt,
+            file_contents=[ImageContent(image_base64=img_b64)],
+        ))
+    except Exception as e:
+        logger.error(f"Scan error: {e}")
+        raise HTTPException(status_code=502, detail="Card scan failed")
+
+    import json as _json
+    text = (reply or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        raise HTTPException(status_code=502, detail="Unexpected AI response")
+    try:
+        parsed = _json.loads(text[start:end + 1])
+    except Exception:
+        raise HTTPException(status_code=502, detail="Could not parse AI response")
+
+    # Normalize sport against known list (else null)
+    valid_sports = {"Basketball", "Baseball", "Football", "Hockey", "Soccer", "Pokemon", "Other"}
+    sport = parsed.get("sport")
+    if sport and sport not in valid_sports:
+        sport = "Other"
+    tags = parsed.get("tags") or []
+    if not isinstance(tags, list):
+        tags = []
+    tags = [str(t).strip().lower() for t in tags if str(t).strip()][:5]
+
+    year = parsed.get("year")
+    if isinstance(year, str):
+        try:
+            year = int("".join(c for c in year if c.isdigit())[:4])
+        except Exception:
+            year = None
+
+    return {
+        "year": year,
+        "name": (parsed.get("name") or "").strip()[:120] or None,
+        "sport": sport,
+        "set": (parsed.get("set") or "").strip()[:80] or None,
+        "tags": tags,
+        "condition_suggestion": (parsed.get("condition_suggestion") or "").strip()[:60] or None,
+        "confidence": float(parsed.get("confidence") or 0.0),
+    }
+
+
 @api_router.post("/cards/{card_id}/image", response_model=Card)
 async def upload_card_image(card_id: str, file: UploadFile = File(...), replace: bool = True, user: User = Depends(get_current_user)):
     existing = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})

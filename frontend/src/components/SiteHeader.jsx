@@ -60,7 +60,7 @@ export default function SiteHeader() {
           )}
         </Link>
 
-        <nav className="flex items-center gap-1 sm:gap-2">
+        <nav className="hidden md:flex items-center gap-1 sm:gap-2">
           <NavLink to="/dashboard" icon={LayoutDashboard} label="Vault" testId="nav-vault" />
           <NavLink to="/watchlist" icon={Eye} label="Watchlist" testId="nav-watchlist" locked={!isPro} />
           <NavLink to="/profile" icon={UserIcon} label="Profile" testId="nav-profile" />

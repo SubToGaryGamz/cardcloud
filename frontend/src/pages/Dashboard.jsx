@@ -12,10 +12,11 @@ import Charts from "../components/Charts";
 import QuickSellModal from "../components/QuickSellModal";
 import ImportCsvButton from "../components/ImportCsvButton";
 import SiteHeader from "../components/SiteHeader";
+import MobileBottomNav from "../components/MobileBottomNav";
 import BestFlipCard from "../components/BestFlipCard";
 import { SPORTS } from "../lib/sports";
 import { useBilling } from "../context/BillingContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import useKeyboardShortcuts from "../hooks/useKeyboardShortcuts";
 import { isNativePlatform } from "../lib/platform";
 
@@ -24,6 +25,7 @@ const EMPTY_BG = "https://images.unsplash.com/photo-1698239345711-67b1fabd645b?c
 export default function Dashboard() {
   const { isPro } = useBilling();
   const navigate = useNavigate();
+  const location = useLocation();
   const searchRef = useRef(null);
   const [stats, setStats] = useState(null);
   const [cards, setCards] = useState([]);
@@ -85,6 +87,18 @@ export default function Dashboard() {
     return () => clearTimeout(t);
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [q, statusFilter, yearFilter, sportFilter, tagFilter, refreshKey]);
+
+  // Mobile bottom nav "+" → open Add Card modal (event from MobileBottomNav, or ?add=1 URL param)
+  useEffect(() => {
+    const handler = () => { setEditing(null); setModalOpen(true); };
+    window.addEventListener("cardcloud:open-add-card", handler);
+    if (new URLSearchParams(location.search).get("add") === "1") {
+      handler();
+      navigate("/dashboard", { replace: true });
+    }
+    return () => window.removeEventListener("cardcloud:open-add-card", handler);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [location.search]);
 
   const bumpRefresh = () => setRefreshKey((k) => k + 1);
 
@@ -190,7 +204,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
       <SiteHeader />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 pb-24 md:pb-12 relative z-10">
         {/* Pro upsell banner (free users only — hidden in native to comply with App Store IAP rules) */}
         {!isPro && !isNativePlatform() && (
           <div className="relative mb-6 rounded-xl bg-gradient-to-br from-[#FFD60A]/15 via-[#141414] to-[#141414] border border-[#FFD60A]/40 p-5 sm:p-6 overflow-hidden shadow-glow-red fade-up" data-testid="pro-upsell-banner">
@@ -463,6 +477,8 @@ export default function Dashboard() {
         onClose={() => setQuickSellCard(null)}
         onDone={bumpRefresh}
       />
+
+      <MobileBottomNav />
     </div>
   );
 }

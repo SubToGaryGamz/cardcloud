@@ -4,7 +4,9 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Upload, Image as ImageIcon } from "lucide-react";
+import { Upload, Image as ImageIcon, Sparkles, Loader2, X as XIcon } from "lucide-react";
+import api from "../lib/api";
+import { toast } from "sonner";
 import TagInput from "./TagInput";
 import MultiImageManager from "./MultiImageManager";
 import { SPORTS } from "../lib/sports";
@@ -34,6 +36,8 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanFields, setScanFields] = useState(null); // names of fields populated by scan, for badge display
 
   useEffect(() => {
     if (card) {
@@ -55,6 +59,7 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
     }
     setFile(null);
     setFilePreview(null);
+    setScanFields(null);
   }, [card, open]);
 
   const onFileChange = (e) => {
@@ -62,6 +67,42 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
     if (!f) return;
     setFile(f);
     setFilePreview(URL.createObjectURL(f));
+  };
+
+  const onScan = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setFile(f);
+    setFilePreview(URL.createObjectURL(f));
+    setScanning(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const r = await api.post("/cards/scan-image", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 45000,
+      });
+      const d = r.data || {};
+      const populated = [];
+      const next = { ...form };
+      if (d.year) { next.year = d.year; populated.push("year"); }
+      if (d.name) { next.name = d.name; populated.push("name"); }
+      if (d.sport) { next.sport = d.sport; populated.push("sport"); }
+      if (Array.isArray(d.tags) && d.tags.length) {
+        next.tags = tagLimit ? d.tags.slice(0, tagLimit) : d.tags;
+        populated.push("tags");
+      }
+      setForm(next);
+      setScanFields(populated);
+      const conf = Math.round((d.confidence || 0) * 100);
+      if (populated.length === 0) toast.warning("Couldn't read this card — try a closer photo");
+      else toast.success(`Scan complete · ${conf}% confidence · filled ${populated.length} field${populated.length !== 1 ? "s" : ""}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Scan failed — please fill manually");
+    } finally {
+      setScanning(false);
+    }
   };
 
   const submit = async (e) => {
@@ -98,6 +139,44 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
+          {!card && (
+            <div className="rounded-lg border border-[#FFD60A]/30 bg-gradient-to-br from-[#FFD60A]/8 to-transparent p-3" data-testid="ai-scan-callout">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-md bg-[#FFD60A] grid place-items-center shrink-0">
+                  {scanning ? (
+                    <Loader2 className="h-4 w-4 text-black animate-spin" strokeWidth={2.5} />
+                  ) : (
+                    <Sparkles className="h-4 w-4 text-black" strokeWidth={2.5} />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-[0.25em] font-black text-[#FFD60A]">AI scan</span>
+                    {scanFields && scanFields.length > 0 && (
+                      <span className="text-[10px] uppercase tracking-widest text-[#34C759] font-bold">✓ Filled {scanFields.length} field{scanFields.length !== 1 ? "s" : ""}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-neutral-300 mt-0.5">
+                    Snap or upload a card photo and we&rsquo;ll read year, name, sport, and tags for you.
+                  </p>
+                  <label className="mt-2 inline-flex items-center gap-1.5 cursor-pointer text-[11px] uppercase tracking-widest font-bold bg-white text-black hover:bg-neutral-200 px-3 py-1.5 rounded-sm transition" data-testid="ai-scan-button">
+                    <Sparkles className="h-3 w-3" />
+                    {scanning ? "Reading card…" : "Scan with AI"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      capture="environment"
+                      className="hidden"
+                      onChange={onScan}
+                      disabled={scanning}
+                      data-testid="ai-scan-file-input"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label className="text-xs tracking-widest uppercase text-neutral-400">Year</Label>

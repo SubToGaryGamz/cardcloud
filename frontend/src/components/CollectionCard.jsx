@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pencil, Trash2, Image as ImageIcon, Zap, Tag as TagIcon, Share2, Copy, Eye, EyeOff, Award } from "lucide-react";
 import { Button } from "./ui/button";
 import {
@@ -16,6 +16,8 @@ import { conditionLabel, CONDITION_IS_GRADED } from "../lib/conditions";
 export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, onTagClick, onShareChanged }) {
   const [urls, setUrls] = useState([]);
   const [lightbox, setLightbox] = useState(false);
+  const [swipeX, setSwipeX] = useState(0);
+  const swipeStart = useRef(null);
 
   useEffect(() => {
     const paths = (card.image_path ? [card.image_path] : []).concat(card.images || []);
@@ -37,6 +39,7 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
   }, [card.image_path, (card.images || []).join("|")]);
 
   const sold = card.status === "sold";
+  const swipable = !sold && typeof onQuickSell === "function";
   const profit = sold ? (Number(card.price_sold || 0) - Number(card.price_paid || 0) - Number(card.expenses || 0)) : null;
   const tags = card.tags || [];
   const extraCount = Math.max(0, urls.length - 1);
@@ -74,8 +77,46 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
     window.open(`/s/c/${card.share_token}`, "_blank", "noopener,noreferrer");
   };
 
+  const onTouchStart = (e) => {
+    if (!swipable) return;
+    swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, startedX: swipeX };
+  };
+  const onTouchMove = (e) => {
+    if (!swipable || !swipeStart.current) return;
+    const dx = e.touches[0].clientX - swipeStart.current.x;
+    const dy = e.touches[0].clientY - swipeStart.current.y;
+    if (Math.abs(dy) > Math.abs(dx)) return; // vertical scroll wins
+    const next = Math.max(-110, Math.min(0, swipeStart.current.startedX + dx));
+    setSwipeX(next);
+  };
+  const onTouchEnd = () => {
+    if (!swipable) { swipeStart.current = null; return; }
+    if (swipeX < -60) {
+      // Trigger Quick Sell
+      setSwipeX(0);
+      onQuickSell?.(card);
+    } else {
+      setSwipeX(0);
+    }
+    swipeStart.current = null;
+  };
+
   return (
-    <div className={wrapperClass} data-testid={`card-item-${card.id}`} data-status={card.status}>
+    <div className="relative" data-testid={`card-item-${card.id}`} data-status={card.status}>
+      {/* Swipe-reveal underlay (Quick Sell action) — desktop hidden, mobile shows behind tile */}
+      {swipable && swipeX < -8 && (
+        <div className="absolute inset-y-0 right-0 w-28 bg-gradient-to-l from-[#34C759] to-[#34C759]/70 flex flex-col items-center justify-center text-black gap-1 rounded-r-lg pointer-events-none" data-testid={`card-swipe-action-${card.id}`}>
+          <Zap className="h-6 w-6" strokeWidth={2.5} />
+          <span className="text-[10px] font-black uppercase tracking-widest">Quick Sell</span>
+        </div>
+      )}
+      <div
+        className={wrapperClass}
+        style={{ transform: `translateX(${swipeX}px)`, transition: swipeStart.current ? "none" : "transform 200ms ease-out" }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
       <div
         className="aspect-[3/4] relative bg-gradient-to-br from-[#1a1a1a] to-[#0c0c0c] cursor-pointer overflow-hidden"
         onClick={() => urls.length > 0 && setLightbox(true)}
@@ -236,6 +277,7 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
             </DropdownMenu>
           </div>
         </div>
+      </div>
       </div>
 
       {lightbox && (

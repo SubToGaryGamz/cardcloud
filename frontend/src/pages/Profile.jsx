@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import api from "../lib/api";
 import SiteHeader from "../components/SiteHeader";
+import MobileBottomNav from "../components/MobileBottomNav";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -114,7 +115,7 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
       <SiteHeader />
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 relative z-10">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 lg:py-12 pb-24 md:pb-12 relative z-10">
         <div className="mb-8">
           <div className="text-xs tracking-[0.3em] uppercase text-neutral-500 font-semibold flex items-center gap-2"><UserIcon className="h-3.5 w-3.5" /> Account</div>
           <h1 className="font-display text-4xl sm:text-5xl tracking-tighter font-black uppercase mt-1">Profile</h1>
@@ -266,6 +267,8 @@ export default function Profile() {
           )}
         </div>
       </main>
+
+      <MobileBottomNav />
     </div>
   );
 }
