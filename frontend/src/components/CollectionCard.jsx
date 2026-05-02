@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Pencil, Trash2, Image as ImageIcon, Zap, Tag as TagIcon, Share2, Copy, Eye, EyeOff } from "lucide-react";
+import { Pencil, Trash2, Image as ImageIcon, Zap, Tag as TagIcon, Share2, Copy, Eye, EyeOff, Award } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 import api from "../lib/api";
 import Lightbox from "./Lightbox";
+import { conditionLabel, CONDITION_IS_GRADED } from "../lib/conditions";
 
 export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, onTagClick, onShareChanged }) {
   const [urls, setUrls] = useState([]);
@@ -96,8 +97,14 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
           </span>
         )}
         {card.share_token && (
-          <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 uppercase tracking-widest font-bold rounded-sm bg-[#FF3B30]/15 text-[#FF3B30] border border-[#FF3B30]/30" data-testid={`card-shared-${card.id}`}>
+          <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 uppercase tracking-widest font-bold rounded-sm bg-[#FF3B30]/15 text-[#FF3B30] border border-[#FF3B30]/30 backdrop-blur-sm" data-testid={`card-shared-${card.id}`}>
             <Share2 className="h-2.5 w-2.5" /> Public
+          </span>
+        )}
+        {card.condition && (
+          <span className={`absolute bottom-3 ${card.share_token ? "left-1/2 -translate-x-1/2" : "left-3"} inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 uppercase tracking-widest font-bold rounded-sm bg-black/70 text-white border border-white/15 backdrop-blur-sm`} data-testid={`card-condition-${card.id}`}>
+            {CONDITION_IS_GRADED(card.condition) && <Award className="h-2.5 w-2.5" />}
+            {conditionLabel(card)}
           </span>
         )}
         {extraCount > 0 && (
@@ -147,41 +154,59 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
           </div>
         )}
 
-        <div className="mt-auto pt-4 flex gap-2">
+        <div className="mt-auto pt-4 space-y-2">
           {!sold && (
-            <Button size="sm" onClick={onQuickSell} className="flex-1 bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid={`quick-sell-${card.id}`}>
+            <Button
+              size="sm"
+              onClick={onQuickSell}
+              className="w-full bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide h-9"
+              data-testid={`quick-sell-${card.id}`}
+            >
               <Zap className="h-3.5 w-3.5 mr-1.5" /> Quick Sell
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={onEdit} className={`${sold ? "flex-1" : ""} bg-transparent border-white/15 text-white hover:bg-white/5`} data-testid={`edit-card-${card.id}`}>
-            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="bg-transparent border-white/15 text-white hover:bg-white/5" data-testid={`more-card-${card.id}`}>
-                <Share2 className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-[#141414] border-white/10 text-white">
-              <DropdownMenuItem onClick={copyShareLink} className="cursor-pointer focus:bg-white/5" data-testid={`share-copy-${card.id}`}>
-                <Copy className="h-3.5 w-3.5 mr-2" /> {card.share_token ? "Copy share link" : "Create share link"}
-              </DropdownMenuItem>
-              {card.share_token && (
-                <DropdownMenuItem onClick={openPublic} className="cursor-pointer focus:bg-white/5" data-testid={`share-open-${card.id}`}>
-                  <Eye className="h-3.5 w-3.5 mr-2" /> Open public view
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onEdit}
+              className="bg-transparent border-white/15 text-white hover:bg-white/5 h-9"
+              data-testid={`edit-card-${card.id}`}
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="bg-transparent border-white/15 text-white hover:bg-white/5 h-9"
+                  data-testid={`more-card-${card.id}`}
+                >
+                  <Share2 className="h-3.5 w-3.5 mr-1.5" /> Share
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-[#141414] border-white/10 text-white">
+                <DropdownMenuItem onClick={copyShareLink} className="cursor-pointer focus:bg-white/5" data-testid={`share-copy-${card.id}`}>
+                  <Copy className="h-3.5 w-3.5 mr-2" /> {card.share_token ? "Copy share link" : "Create share link"}
                 </DropdownMenuItem>
-              )}
-              {card.share_token && (
-                <DropdownMenuItem onClick={revokeShare} className="cursor-pointer focus:bg-white/5 text-[#FF3B30]" data-testid={`share-revoke-${card.id}`}>
-                  <EyeOff className="h-3.5 w-3.5 mr-2" /> Revoke link
+                {card.share_token && (
+                  <DropdownMenuItem onClick={openPublic} className="cursor-pointer focus:bg-white/5" data-testid={`share-open-${card.id}`}>
+                    <Eye className="h-3.5 w-3.5 mr-2" /> Open public view
+                  </DropdownMenuItem>
+                )}
+                {card.share_token && (
+                  <DropdownMenuItem onClick={revokeShare} className="cursor-pointer focus:bg-white/5 text-[#FF3B30]" data-testid={`share-revoke-${card.id}`}>
+                    <EyeOff className="h-3.5 w-3.5 mr-2" /> Revoke link
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem onClick={onDelete} className="cursor-pointer focus:bg-[#FF3B30]/10 text-[#FF3B30]" data-testid={`delete-card-${card.id}`}>
+                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete card
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator className="bg-white/10" />
-              <DropdownMenuItem onClick={onDelete} className="cursor-pointer focus:bg-[#FF3B30]/10 text-[#FF3B30]" data-testid={`delete-card-${card.id}`}>
-                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete card
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 

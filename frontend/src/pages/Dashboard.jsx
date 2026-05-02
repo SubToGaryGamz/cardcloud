@@ -12,6 +12,7 @@ import Charts from "../components/Charts";
 import QuickSellModal from "../components/QuickSellModal";
 import ImportCsvButton from "../components/ImportCsvButton";
 import SiteHeader from "../components/SiteHeader";
+import BestFlipCard from "../components/BestFlipCard";
 import { SPORTS } from "../lib/sports";
 
 const EMPTY_BG = "https://images.unsplash.com/photo-1698239345711-67b1fabd645b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXJkJTIwYmFzZWJhbGx8ZW58MHx8fHwxNzc3Njc4Njc3fDA&ixlib=rb-4.1.0&q=85";
@@ -199,6 +200,11 @@ export default function Dashboard() {
         </div>
 
         <Charts refreshKey={refreshKey} />
+
+        {/* Best Flip */}
+        <div className="mb-8">
+          <BestFlipCard since={range} refreshKey={refreshKey} />
+        </div>
 
         {/* Search & filters */}
         <div className="flex flex-col md:flex-row gap-2 md:gap-3 mb-4">

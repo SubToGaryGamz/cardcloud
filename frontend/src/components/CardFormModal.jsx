@@ -8,6 +8,7 @@ import { Upload, Image as ImageIcon } from "lucide-react";
 import TagInput from "./TagInput";
 import MultiImageManager from "./MultiImageManager";
 import { SPORTS } from "../lib/sports";
+import { CONDITIONS, CONDITION_IS_GRADED } from "../lib/conditions";
 
 const empty = {
   year: new Date().getFullYear(),
@@ -21,6 +22,8 @@ const empty = {
   status: "in_collection",
   purchased_date: "",
   sold_date: "",
+  condition: "Raw",
+  grade: "",
 };
 
 export default function CardFormModal({ open, onClose, onSave, card, onCardMutated }) {
@@ -74,6 +77,8 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
         status: form.status,
         purchased_date: form.purchased_date || null,
         sold_date: form.sold_date || null,
+        condition: form.condition || null,
+        grade: CONDITION_IS_GRADED(form.condition) && form.grade !== "" ? parseFloat(form.grade) : null,
       };
       await onSave(payload, file);
     } finally {
@@ -125,6 +130,35 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
             <Label className="text-xs tracking-widest uppercase text-neutral-400">Tags</Label>
             <TagInput value={form.tags} onChange={(v) => setForm({ ...form, tags: v })} placeholder="e.g. team, player, rookie, holo…" testId="form-tags-input" />
             <p className="text-[11px] text-neutral-500 mt-1.5">Press Enter or comma to add. Use team, player, set, parallel, etc.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs tracking-widest uppercase text-neutral-400">Condition</Label>
+              <Select value={form.condition} onValueChange={(v) => setForm({ ...form, condition: v, grade: CONDITION_IS_GRADED(v) ? form.grade : "" })}>
+                <SelectTrigger className="bg-[#0A0A0A] border-white/10 mt-1.5" data-testid="form-condition-select">
+                  <SelectValue placeholder="Choose condition" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#141414] border-white/10 text-white">
+                  {CONDITIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className={`text-xs tracking-widest uppercase ${CONDITION_IS_GRADED(form.condition) ? "text-neutral-400" : "text-neutral-600"}`}>Grade</Label>
+              <Input
+                type="number"
+                step="0.5"
+                min="1"
+                max="10"
+                value={form.grade}
+                onChange={(e) => setForm({ ...form, grade: e.target.value })}
+                disabled={!CONDITION_IS_GRADED(form.condition)}
+                placeholder={CONDITION_IS_GRADED(form.condition) ? "e.g. 9.5" : "—"}
+                className="bg-[#0A0A0A] border-white/10 mt-1.5 disabled:opacity-50"
+                data-testid="form-grade-input"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">

@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 5 testing of CardCloud (Condition+Grade, Best Flip, new button layout) complete. Backend: 11/11 new pytest cases for iter5 pass + full iter1-4 regression 51/51 pass (62/62 total, 100%). Frontend: Playwright confirms Best Flip tile renders with Giannis Select +$88.00 on Dashboard and reflows on range change; first card shows 'PSA 9' condition badge via card-condition-<id> testid; button layout NEW: Quick Sell width 238px full-width on row1, Edit 115px + Share 115px (equal 50/50) on row2, Share button now shows 'Share' text and dropdown opens with Copy/Open/Revoke menu items. Add-Card form Condition select + Grade input: default Raw→grade disabled+empty; PSA→grade enabled and accepts 9.5; switching back to Raw auto-clears grade value and re-disables input, exactly as specified. No critical issues.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard", "issues": ["Benign 'ResizeObserver loop completed with undelivered notifications' runtime overlay appears momentarily on login->dashboard transition (recharts). Carried from prior iters; dev-only overlay, not a production bug."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_5.py",
+    "/app/backend/tests/test_iteration_4.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter5_results.xml"
+  ],
+  "action_items": [
+    "None blocking. Optional: wrap recharts ResponsiveContainer to silence ResizeObserver loop overlay during dev.",
+    "Optional (carried): split server.py (~1186 lines) into feature routers (share, public, images, cards, watchlist, auth).",
+    "Optional (carried): /api/public/image O(N) lookup on vault-token image hits — cache allowed_paths per token."
+  ],
+  "critical_code_review_comments": [
+    "server.py now ~1186 lines including new /cards/best-flip + condition/grade logic. Still fine but splitting becomes more valuable each iteration.",
+    "/cards/best-flip iterates ALL sold cards in Python then selects max; for large collections this is O(N) per request. Consider MongoDB aggregation with $match on status=sold and sold_date>=cutoff, computed profit via $expr/$subtract, then $sort+$limit 1.",
+    "_card_doc casts grade: `float(payload['grade']) if payload.get('grade') not in (None, '', 0, 0.0) else None`. This silently drops grade=0 which is invalid anyway but also drops grade=0.0 explicitly — reasonable, but note: a legitimate PSA 1 (grade 1.0) is preserved. Grade validation (1.0-10.0 range) is NOT enforced server-side — any float would be accepted (e.g. -5 or 99). Consider Pydantic Field(ge=1, le=10) on CardCreate.grade/CardUpdate.grade.",
+    "CSV import preserves condition string as-entered (e.g. 'bgs' stays lowercase) rather than normalizing to canonical 'BGS'. Minor but could cause the condition filter `?condition=BGS` to miss these rows. Consider case-normalizing on import to one of CONDITIONS values or lowercasing both sides in the filter.",
+    "No test/validation that condition is in the allowed set (Raw|PSA|BGS|SGC|CGC|Other); server happily stores arbitrary string.",
+    "best-flip returns `{card: null, profit: 0.0, since}` on empty — UI correctly hides tile. Good contract."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_5.py (new, 11 cases covering condition+grade CRUD, condition filter, best-flip windows, empty best-flip, CSV export/import with condition+grade, regression smoke)"
+  ],
+  "success_rate": {"backend": "100% (62/62 pytest: 11 iter5 + 51 iter1-4 regression)", "frontend": "100% on tested flows (Best Flip, condition badge, new button layout, Share dropdown, condition/grade form toggle)"},
+  "test_credentials": "demo@example.com / demo1234 (seeded).",
+  "seed_data_creation": "All TEST_I5_* cards auto-cleaned by fixture teardown. Imported CSV rows (TEST_I5_ImportedA/B/C) explicitly deleted. No pollution of demo's main collection.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 5 adds condition (Raw|PSA|BGS|SGC|CGC|Other) + grade (float 1.0-10.0, only meaningful when condition is a grader) on Card model. New endpoints: GET /api/cards/best-flip?since=30d|90d|1y|all (defaults 30d) returns {card, profit, since} with card=null on empty window. Condition filter: GET /api/cards?condition=X. CSV export/import include Condition + Grade columns (case-insensitive import header match). Grade is NOT range-validated server-side (any float accepted). Condition is NOT enum-validated (any string accepted). Frontend testids: form-condition-select, form-grade-input (disabled when condition=Raw|Other, auto-cleared on graded->non-graded transition), card-condition-{id} badge, best-flip-card, best-flip-name, best-flip-profit. New CollectionCard layout: Quick Sell full-width row (when in_collection), then Edit + Share in grid-cols-2 50/50 row; Share button shows 'Share' text + Share2 icon; dropdown items share-copy/share-open/share-revoke/delete-card. Dashboard passes since={range} to BestFlipCard; tile self-hides when API returns card:null.",
+  "rca of the issue": "No defects found. All spec items verified end-to-end (backend contract + frontend rendering + interactions)."
+}

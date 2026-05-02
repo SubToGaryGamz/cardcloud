@@ -132,11 +132,13 @@ class Card(BaseModel):
     expenses: float = 0.0
     status: str = "in_collection"  # in_collection | sold
     image_path: Optional[str] = None
-    images: List[str] = []  # multi-image support (additional images)
+    images: List[str] = []
     purchased_date: Optional[str] = None
     sold_date: Optional[str] = None
     sport: Optional[str] = None
     tags: List[str] = []
+    condition: Optional[str] = None  # Raw | PSA | BGS | SGC | CGC | Other
+    grade: Optional[float] = None  # 1.0 - 10.0 (only when condition is a grader)
     share_token: Optional[str] = None
     created_at: str
     updated_at: str
@@ -154,6 +156,8 @@ class CardCreate(BaseModel):
     sold_date: Optional[str] = None
     sport: Optional[str] = None
     tags: List[str] = []
+    condition: Optional[str] = None
+    grade: Optional[float] = None
 
 
 class CardUpdate(BaseModel):
@@ -168,6 +172,8 @@ class CardUpdate(BaseModel):
     sold_date: Optional[str] = None
     sport: Optional[str] = None
     tags: Optional[List[str]] = None
+    condition: Optional[str] = None
+    grade: Optional[float] = None
 
 
 class QuickSellReq(BaseModel):
@@ -422,6 +428,8 @@ def _card_doc(payload: dict, user_id: str, existing: Optional[dict] = None) -> d
         "sold_date": payload.get("sold_date") or None,
         "sport": (payload.get("sport") or None),
         "tags": _norm_tags(payload.get("tags")),
+        "condition": payload.get("condition") or None,
+        "grade": (float(payload["grade"]) if payload.get("grade") not in (None, "", 0, 0.0) else None),
         "created_at": now,
         "updated_at": now,
     }
@@ -441,6 +449,7 @@ async def list_cards(
     year: Optional[int] = None,
     tag: Optional[str] = None,
     sport: Optional[str] = None,
+    condition: Optional[str] = None,
     user: User = Depends(get_current_user),
 ):
     filt: dict = {"user_id": user.user_id}
@@ -450,6 +459,8 @@ async def list_cards(
         filt["year"] = year
     if sport:
         filt["sport"] = sport
+    if condition:
+        filt["condition"] = condition
     if tag:
         filt["tags"] = tag.strip().lower()
     if q:
@@ -457,6 +468,30 @@ async def list_cards(
         filt["$or"] = [{"name": qr}, {"tags": qr}, {"sport": qr}]
     docs = await db.cards.find(filt, {"_id": 0}).sort("created_at", -1).to_list(2000)
     return [Card(**d) for d in docs]
+
+
+@api_router.get("/cards/best-flip")
+async def best_flip(since: Optional[str] = None, user: User = Depends(get_current_user)):
+    """Highest-profit sold card in the given window (defaults: last 30 days)."""
+    cutoff = _since_cutoff(since) if since else (datetime.now(timezone.utc) - timedelta(days=30))
+    docs = await db.cards.find({"user_id": user.user_id, "status": "sold"}, {"_id": 0}).to_list(5000)
+    best = None
+    best_profit = None
+    for d in docs:
+        sold_dt = _card_date(d, "sold")
+        if cutoff is not None and (not sold_dt or sold_dt < cutoff):
+            continue
+        profit = float(d.get("price_sold") or 0) - float(d.get("price_paid") or 0) - float(d.get("expenses") or 0)
+        if best_profit is None or profit > best_profit:
+            best_profit = profit
+            best = d
+    if not best:
+        return {"card": None, "profit": 0.0, "since": since or "30d"}
+    return {
+        "card": Card(**best).model_dump(),
+        "profit": round(best_profit or 0, 2),
+        "since": since or "30d",
+    }
 
 
 @api_router.get("/cards/tags")
@@ -606,13 +641,15 @@ async def export_cards_csv(user: User = Depends(get_current_user)):
     docs = await db.cards.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(5000)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Year", "Name", "Sport", "Tags", "Where Bought", "Price Paid", "Price Sold", "Expenses", "Status", "Purchased Date", "Sold Date", "Profit", "Created"])
+    writer.writerow(["Year", "Name", "Sport", "Condition", "Grade", "Tags", "Where Bought", "Price Paid", "Price Sold", "Expenses", "Status", "Purchased Date", "Sold Date", "Profit", "Created"])
     for d in docs:
         sold = float(d.get("price_sold") or 0) if d.get("status") == "sold" else 0
         profit = sold - float(d.get("price_paid") or 0) - float(d.get("expenses") or 0) if d.get("status") == "sold" else 0
         writer.writerow([
             d.get("year"), d.get("name"),
             d.get("sport") or "",
+            d.get("condition") or "",
+            d.get("grade") if d.get("grade") is not None else "",
             ",".join(d.get("tags") or []),
             d.get("where_bought") or "",
             d.get("price_paid") or 0, d.get("price_sold") or "",
@@ -823,6 +860,8 @@ async def import_cards(file: UploadFile = File(...), user: User = Depends(get_cu
             "sold_date": (r.get("sold date") or r.get("sold_date") or "") or None,
             "sport": (r.get("sport") or "") or None,
             "tags": _norm_tags(r.get("tags") or ""),
+            "condition": (r.get("condition") or "") or None,
+            "grade": _num(r.get("grade") or "", None),
             "created_at": now_iso,
             "updated_at": now_iso,
         }
