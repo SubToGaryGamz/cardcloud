@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Upload, Image as ImageIcon } from "lucide-react";
 
-const empty = { year: new Date().getFullYear(), name: "", where_bought: "", price_paid: "", price_sold: "", expenses: "", status: "in_collection" };
+const empty = { year: new Date().getFullYear(), name: "", where_bought: "", price_paid: "", price_sold: "", expenses: "", status: "in_collection", purchased_date: "", sold_date: "" };
 
 export default function CardFormModal({ open, onClose, onSave, card }) {
   const [form, setForm] = useState(empty);
@@ -24,6 +24,8 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
         price_sold: card.price_sold ?? "",
         expenses: card.expenses ?? "",
         status: card.status || "in_collection",
+        purchased_date: card.purchased_date || "",
+        sold_date: card.sold_date || "",
       });
     } else {
       setForm(empty);
@@ -51,6 +53,8 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
         price_sold: form.price_sold === "" ? null : parseFloat(form.price_sold) || 0,
         expenses: parseFloat(form.expenses || 0) || 0,
         status: form.status,
+        purchased_date: form.purchased_date || null,
+        sold_date: form.sold_date || null,
       };
       await onSave(payload, file);
     } finally {
@@ -109,6 +113,17 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
                 <SelectItem value="sold">Sold</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs tracking-widest uppercase text-neutral-400">Purchased Date</Label>
+              <Input type="date" value={form.purchased_date} onChange={(e) => setForm({ ...form, purchased_date: e.target.value })} className="bg-[#0A0A0A] border-white/10 mt-1.5" data-testid="form-purchased-date-input" />
+            </div>
+            <div>
+              <Label className="text-xs tracking-widest uppercase text-neutral-400">Sold Date</Label>
+              <Input type="date" value={form.sold_date} onChange={(e) => setForm({ ...form, sold_date: e.target.value })} className="bg-[#0A0A0A] border-white/10 mt-1.5" disabled={form.status !== "sold"} data-testid="form-sold-date-input" />
+            </div>
           </div>
 
           <div>

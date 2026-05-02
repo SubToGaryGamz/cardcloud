@@ -4,11 +4,14 @@ import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Trophy, Plus, LogOut, Search, Download, Pencil, Trash2, Image as ImageIcon, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt } from "lucide-react";
+import { Trophy, Plus, LogOut, Search, Download, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import CardFormModal from "../components/CardFormModal";
 import StatCard from "../components/StatCard";
 import CollectionCard from "../components/CollectionCard";
+import Charts from "../components/Charts";
+import QuickSellModal from "../components/QuickSellModal";
+import ImportCsvButton from "../components/ImportCsvButton";
 
 const EMPTY_BG = "https://images.unsplash.com/photo-1698239345711-67b1fabd645b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXJkJTIwYmFzZWJhbGx8ZW58MHx8fHwxNzc3Njc4Njc3fDA&ixlib=rb-4.1.0&q=85";
 
@@ -22,10 +25,13 @@ export default function Dashboard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState("all");
+  const [quickSellCard, setQuickSellCard] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const loadStats = async () => {
     try {
-      const r = await api.get("/cards/stats");
+      const r = await api.get("/cards/stats", { params: range === "all" ? {} : { since: range } });
       setStats(r.data);
     } catch (e) { /* noop */ }
   };
@@ -46,11 +52,13 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { loadStats(); }, [cards.length]);
+  useEffect(() => { loadStats(); }, [cards.length, range]);
   useEffect(() => {
     const t = setTimeout(loadCards, 250);
     return () => clearTimeout(t);
   }, [q, statusFilter, yearFilter]);
+
+  const bumpRefresh = () => setRefreshKey((k) => k + 1);
 
   const onSave = async (form, file) => {
     try {
@@ -72,6 +80,7 @@ export default function Dashboard() {
       setEditing(null);
       loadCards();
       loadStats();
+      bumpRefresh();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Save failed");
     }
@@ -140,6 +149,18 @@ export default function Dashboard() {
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Select value={range} onValueChange={setRange}>
+              <SelectTrigger className="w-[150px] bg-[#141414] border-white/10" data-testid="time-range-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#141414] border-white/10 text-white">
+                <SelectItem value="all">All time</SelectItem>
+                <SelectItem value="30d">Last 30 days</SelectItem>
+                <SelectItem value="90d">Last 90 days</SelectItem>
+                <SelectItem value="1y">Last 12 months</SelectItem>
+              </SelectContent>
+            </Select>
+            <ImportCsvButton onImported={() => { loadCards(); loadStats(); bumpRefresh(); }} />
             <Button variant="outline" onClick={onExport} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="export-csv-button">
               <Download className="h-4 w-4 mr-2" /> Export CSV
             </Button>
@@ -181,6 +202,9 @@ export default function Dashboard() {
             testId="total-profit-metric"
           />
         </div>
+
+        {/* Charts */}
+        <Charts refreshKey={refreshKey} />
 
         {/* Search & filters */}
         <div className="flex flex-col md:flex-row gap-3 mb-6">
@@ -233,6 +257,7 @@ export default function Dashboard() {
                 card={c}
                 onEdit={() => { setEditing(c); setModalOpen(true); }}
                 onDelete={() => onDelete(c)}
+                onQuickSell={() => setQuickSellCard(c)}
               />
             ))}
           </div>
@@ -244,6 +269,13 @@ export default function Dashboard() {
         onClose={() => { setModalOpen(false); setEditing(null); }}
         onSave={onSave}
         card={editing}
+      />
+
+      <QuickSellModal
+        open={!!quickSellCard}
+        card={quickSellCard}
+        onClose={() => setQuickSellCard(null)}
+        onDone={() => { loadCards(); loadStats(); bumpRefresh(); }}
       />
     </div>
   );

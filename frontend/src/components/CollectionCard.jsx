@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Pencil, Trash2, Image as ImageIcon } from "lucide-react";
+import { Pencil, Trash2, Image as ImageIcon, Zap } from "lucide-react";
 import { Button } from "./ui/button";
 import api from "../lib/api";
 
-export default function CollectionCard({ card, onEdit, onDelete }) {
+export default function CollectionCard({ card, onEdit, onDelete, onQuickSell }) {
   const [imgUrl, setImgUrl] = useState(null);
 
   useEffect(() => {
@@ -67,7 +67,12 @@ export default function CollectionCard({ card, onEdit, onDelete }) {
         )}
 
         <div className="mt-auto pt-4 flex gap-2">
-          <Button size="sm" variant="outline" onClick={onEdit} className="flex-1 bg-transparent border-white/15 text-white hover:bg-white/5" data-testid={`edit-card-${card.id}`}>
+          {!sold && (
+            <Button size="sm" onClick={onQuickSell} className="flex-1 bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid={`quick-sell-${card.id}`}>
+              <Zap className="h-3.5 w-3.5 mr-1.5" /> Quick Sell
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={onEdit} className={`${sold ? "flex-1" : ""} bg-transparent border-white/15 text-white hover:bg-white/5`} data-testid={`edit-card-${card.id}`}>
             <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
           </Button>
           <Button size="sm" variant="outline" onClick={onDelete} className="bg-transparent border-white/15 text-neutral-300 hover:bg-[#FF3B30]/10 hover:text-[#FF3B30] hover:border-[#FF3B30]/40" data-testid={`delete-card-${card.id}`}>

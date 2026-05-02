@@ -179,3 +179,186 @@ def test_delete_card(auth_headers):
     assert rd.status_code == 200
     rg = requests.get(f"{API}/cards/{cid}", headers=auth_headers)
     assert rg.status_code == 404
+
+
+# ============ Iteration 2 features ============
+
+# new optional fields purchased_date / sold_date on POST/PUT
+def test_create_with_dates(auth_headers):
+    payload = {
+        "year": 1999, "name": "TEST_DatesCard", "price_paid": 50.0,
+        "purchased_date": "2024-06-15", "status": "in_collection",
+    }
+    r = requests.post(f"{API}/cards", headers=auth_headers, json=payload)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["purchased_date"] == "2024-06-15"
+    assert d["sold_date"] is None
+    cid = d["id"]
+    # PUT sold_date
+    r2 = requests.put(f"{API}/cards/{cid}", headers=auth_headers,
+                      json={"sold_date": "2024-09-20", "status": "sold", "price_sold": 80.0})
+    assert r2.status_code == 200
+    assert r2.json()["sold_date"] == "2024-09-20"
+    # cleanup
+    requests.delete(f"{API}/cards/{cid}", headers=auth_headers)
+
+
+# Quick Sell endpoint
+def test_quick_sell(auth_headers):
+    # create in-collection card
+    r = requests.post(f"{API}/cards", headers=auth_headers,
+                      json={"year": 2010, "name": "TEST_QSell", "price_paid": 100.0,
+                            "expenses": 5.0, "status": "in_collection"})
+    cid = r.json()["id"]
+    # quick-sell
+    rs = requests.post(f"{API}/cards/{cid}/quick-sell", headers=auth_headers,
+                       json={"price_sold": 200.0, "extra_expenses": 10.0})
+    assert rs.status_code == 200, rs.text
+    d = rs.json()
+    assert d["status"] == "sold"
+    assert d["price_sold"] == 200.0
+    # expenses should be 5 + 10 = 15
+    assert abs(d["expenses"] - 15.0) < 0.001
+    # sold_date defaulted to today (YYYY-MM-DD)
+    assert d["sold_date"] and len(d["sold_date"]) == 10
+    # GET verifies persistence
+    g = requests.get(f"{API}/cards/{cid}", headers=auth_headers)
+    assert g.json()["status"] == "sold"
+    requests.delete(f"{API}/cards/{cid}", headers=auth_headers)
+
+
+def test_quick_sell_with_explicit_date(auth_headers):
+    r = requests.post(f"{API}/cards", headers=auth_headers,
+                      json={"year": 2011, "name": "TEST_QSellDate", "price_paid": 50.0,
+                            "status": "in_collection"})
+    cid = r.json()["id"]
+    rs = requests.post(f"{API}/cards/{cid}/quick-sell", headers=auth_headers,
+                       json={"price_sold": 75.0, "extra_expenses": 0, "sold_date": "2025-02-15"})
+    assert rs.status_code == 200
+    assert rs.json()["sold_date"] == "2025-02-15"
+    requests.delete(f"{API}/cards/{cid}", headers=auth_headers)
+
+
+def test_quick_sell_not_found(auth_headers):
+    r = requests.post(f"{API}/cards/nonexistent-id/quick-sell", headers=auth_headers,
+                      json={"price_sold": 1.0})
+    assert r.status_code == 404
+
+
+# Stats with ?since
+def test_stats_since(auth_headers):
+    for since in ("all", "30d", "90d", "1y"):
+        r = requests.get(f"{API}/cards/stats", headers=auth_headers, params={"since": since})
+        assert r.status_code == 200, f"since={since}: {r.text}"
+        s = r.json()
+        for k in ("total_paid", "total_sales", "total_expenses", "profit", "sold_count", "total_cards"):
+            assert k in s
+
+
+# Timeseries endpoint
+def test_timeseries(auth_headers):
+    r = requests.get(f"{API}/cards/timeseries", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert "monthly" in d and "by_year" in d
+    assert isinstance(d["monthly"], list)
+    assert len(d["monthly"]) == 12
+    # each bucket has expected keys
+    for b in d["monthly"]:
+        for k in ("month", "paid", "sales", "profit", "count_bought", "count_sold"):
+            assert k in b
+    assert isinstance(d["by_year"], list)
+    for y in d["by_year"]:
+        for k in ("year", "count", "paid", "sales"):
+            assert k in y
+
+
+def test_timeseries_custom_months(auth_headers):
+    r = requests.get(f"{API}/cards/timeseries", headers=auth_headers, params={"months": 6})
+    assert r.status_code == 200
+    assert len(r.json()["monthly"]) == 6
+
+
+# Import CSV
+def _make_csv():
+    csv_text = (
+        "Year,Name,Where Bought,Price Paid,Price Sold,Expenses,Status,Purchased Date,Sold Date\n"
+        "1986,TEST_Import_Jordan,eBay,100,250,5,sold,2024-01-10,2024-05-20\n"
+        "1990,TEST_Import_Griffey,COMC,30,,2,in_collection,2024-03-15,\n"
+    )
+    return csv_text.encode("utf-8")
+
+
+def test_import_csv(demo_token):
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    files = {"file": ("import.csv", _make_csv(), "text/csv")}
+    r = requests.post(f"{API}/cards/import", headers=headers, files=files)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["imported"] == 2, j
+    assert j["skipped"] == 0
+    # verify the cards exist
+    g = requests.get(f"{API}/cards", headers=headers, params={"q": "TEST_Import_"})
+    names = [c["name"] for c in g.json()]
+    assert "TEST_Import_Jordan" in names
+    sold = [c for c in g.json() if c["name"] == "TEST_Import_Jordan"][0]
+    assert sold["status"] == "sold"
+    assert sold["price_sold"] == 250.0
+    assert sold["purchased_date"] == "2024-01-10"
+    assert sold["sold_date"] == "2024-05-20"
+    # cleanup
+    for c in g.json():
+        requests.delete(f"{API}/cards/{c['id']}", headers=headers)
+
+
+def test_import_csv_with_underscore_headers(demo_token):
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    csv_text = (
+        "year,name,where_bought,price_paid,price_sold,expenses,status,purchased_date,sold_date\n"
+        "2001,TEST_Import_Underscore,LCS,10,,0,in_collection,,\n"
+    ).encode("utf-8")
+    files = {"file": ("u.csv", csv_text, "text/csv")}
+    r = requests.post(f"{API}/cards/import", headers=headers, files=files)
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    g = requests.get(f"{API}/cards", headers=headers, params={"q": "TEST_Import_Underscore"})
+    for c in g.json():
+        requests.delete(f"{API}/cards/{c['id']}", headers=headers)
+
+
+def test_import_csv_skips_invalid(demo_token):
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    csv_text = (
+        "Year,Name,Price Paid\n"
+        ",MissingYear,10\n"
+        "abc,BadYear,10\n"
+        "1995,TEST_Import_Valid,15\n"
+    ).encode("utf-8")
+    files = {"file": ("bad.csv", csv_text, "text/csv")}
+    r = requests.post(f"{API}/cards/import", headers=headers, files=files)
+    assert r.status_code == 200
+    j = r.json()
+    assert j["imported"] == 1
+    assert j["skipped"] == 2
+    assert len(j["errors"]) >= 2
+    # cleanup
+    g = requests.get(f"{API}/cards", headers=headers, params={"q": "TEST_Import_Valid"})
+    for c in g.json():
+        requests.delete(f"{API}/cards/{c['id']}", headers=headers)
+
+
+def test_import_rejects_non_csv(auth_headers):
+    files = {"file": ("a.txt", b"hello", "text/plain")}
+    headers = {k: v for k, v in auth_headers.items() if k != "Content-Type"}
+    r = requests.post(f"{API}/cards/import", headers=headers, files=files)
+    assert r.status_code == 400
+
+
+# Export CSV includes new columns
+def test_export_csv_has_date_columns(auth_headers):
+    r = requests.get(f"{API}/cards/export.csv", headers=auth_headers)
+    assert r.status_code == 200
+    header = r.text.split("\n", 1)[0]
+    assert "Purchased Date" in header
+    assert "Sold Date" in header
