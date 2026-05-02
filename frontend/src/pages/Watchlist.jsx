@@ -7,7 +7,7 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
-import { Eye, Plus, Target, Trash2, Pencil, ShoppingBag, Tag as TagIcon } from "lucide-react";
+import { Eye, Plus, Target, Trash2, Pencil, ShoppingBag, Tag as TagIcon, ExternalLink, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import TagInput from "../components/TagInput";
 import { SPORTS } from "../lib/sports";
@@ -170,6 +170,7 @@ export default function Watchlist() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [acquiring, setAcquiring] = useState(null);
+  const [estimating, setEstimating] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -201,6 +202,25 @@ export default function Watchlist() {
       toast.success("Removed");
       load();
     } catch (e) { toast.error("Delete failed"); }
+  };
+
+  const ebayCompsUrl = (item) => {
+    const q = encodeURIComponent(`${item.year || ""} ${item.name || ""} ${(item.tags || []).join(" ")}`.trim());
+    // LH_Sold=1 & LH_Complete=1 → sold listings only
+    return `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1`;
+  };
+
+  const onEstimate = async (item) => {
+    setEstimating(item.id);
+    try {
+      const r = await api.post(`/watchlist/${item.id}/estimate`);
+      toast.success(`AI estimate: $${r.data.low.toFixed(0)}–$${r.data.high.toFixed(0)} (typical $${r.data.typical.toFixed(0)})`);
+      setItems((prev) => prev.map((it) => it.id === item.id ? { ...it, ai_estimate: r.data } : it));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Estimate failed");
+    } finally {
+      setEstimating(null);
+    }
   };
 
   return (
@@ -255,6 +275,40 @@ export default function Watchlist() {
                   </div>
                 )}
                 {item.notes && <p className="text-xs text-neutral-400 mt-3 line-clamp-3 italic">“{item.notes}”</p>}
+
+                {item.ai_estimate && (
+                  <div className="mt-3 rounded-md border border-[#007AFF]/30 bg-[#007AFF]/5 p-2.5" data-testid={`ai-estimate-${item.id}`}>
+                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#4aa3ff] font-bold">
+                      <Sparkles className="h-3 w-3" /> AI estimate
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-white">
+                      ${Number(item.ai_estimate.low).toFixed(0)}–${Number(item.ai_estimate.high).toFixed(0)}
+                      <span className="text-neutral-400 font-normal"> · typical <span className="text-white">${Number(item.ai_estimate.typical).toFixed(0)}</span></span>
+                    </div>
+                    {item.ai_estimate.note && <div className="text-[11px] text-neutral-400 mt-1 line-clamp-2">{item.ai_estimate.note}</div>}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <a
+                    href={ebayCompsUrl(item)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white border border-white/10 px-2 py-1 rounded-sm font-semibold transition"
+                    data-testid={`comps-link-${item.id}`}
+                  >
+                    <ExternalLink className="h-2.5 w-2.5" /> View sold comps
+                  </a>
+                  <button
+                    onClick={() => onEstimate(item)}
+                    disabled={estimating === item.id}
+                    className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider bg-[#007AFF]/10 hover:bg-[#007AFF]/20 text-[#4aa3ff] border border-[#007AFF]/30 px-2 py-1 rounded-sm font-semibold transition disabled:opacity-50"
+                    data-testid={`estimate-button-${item.id}`}
+                  >
+                    <Sparkles className="h-2.5 w-2.5" /> {estimating === item.id ? "Estimating…" : "AI estimate"}
+                  </button>
+                </div>
+
                 <div className="mt-auto pt-4 flex gap-2">
                   <Button size="sm" onClick={() => setAcquiring(item)} className="flex-1 bg-[#34C759] hover:bg-[#34C759]/90 text-black font-bold uppercase tracking-wide" data-testid={`acquire-button-${item.id}`}>
                     <ShoppingBag className="h-3.5 w-3.5 mr-1.5" /> Acquired

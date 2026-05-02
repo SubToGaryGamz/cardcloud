@@ -7,6 +7,8 @@ import Dashboard from "./pages/Dashboard";
 import Watchlist from "./pages/Watchlist";
 import Profile from "./pages/Profile";
 import AuthCallback from "./pages/AuthCallback";
+import PublicCard from "./pages/PublicCard";
+import PublicVault from "./pages/PublicVault";
 import { Toaster } from "./components/ui/sonner";
 
 function ProtectedRoute({ children }) {
@@ -38,6 +40,8 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/s/c/:token" element={<PublicCard />} />
+      <Route path="/s/v/:token" element={<PublicVault />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

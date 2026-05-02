@@ -95,6 +95,7 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = None
     avatar_path: Optional[str] = None
+    public_vault_token: Optional[str] = None
     auth_provider: str  # "email" | "google"
     created_at: str
 
@@ -136,6 +137,7 @@ class Card(BaseModel):
     sold_date: Optional[str] = None
     sport: Optional[str] = None
     tags: List[str] = []
+    share_token: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -188,6 +190,7 @@ class WatchItem(BaseModel):
     tags: List[str] = []
     target_price: Optional[float] = None
     notes: Optional[str] = ""
+    ai_estimate: Optional[dict] = None
     created_at: str
     updated_at: str
 
@@ -700,6 +703,27 @@ async def upload_card_image(card_id: str, file: UploadFile = File(...), replace:
     return Card(**new_doc)
 
 
+@api_router.put("/cards/{card_id}/primary-image", response_model=Card)
+async def set_primary_image(card_id: str, path: str = Query(...), user: User = Depends(get_current_user)):
+    existing = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Card not found")
+    all_paths = ([existing.get("image_path")] if existing.get("image_path") else []) + (existing.get("images") or [])
+    if path not in all_paths:
+        raise HTTPException(status_code=400, detail="Path not attached to this card")
+    # New primary, move old primary into images[]
+    old_primary = existing.get("image_path")
+    new_images = [p for p in (existing.get("images") or []) if p != path]
+    if old_primary and old_primary != path:
+        new_images.append(old_primary)
+    await db.cards.update_one(
+        {"id": card_id, "user_id": user.user_id},
+        {"$set": {"image_path": path, "images": new_images, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    new_doc = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
+    return Card(**new_doc)
+
+
 @api_router.delete("/cards/{card_id}/image")
 async def delete_card_image(card_id: str, path: Optional[str] = None, user: User = Depends(get_current_user)):
     existing = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
@@ -919,6 +943,179 @@ async def acquire_watch(item_id: str, req: AcquireReq, user: User = Depends(get_
     await db.watchlist.delete_one({"id": item_id, "user_id": user.user_id})
     return Card(**{k: v for k, v in doc.items() if k != "_id"})
 
+
+
+# ============ Public Showcase ============
+def _sanitize_card_public(d: dict) -> dict:
+    """Strip cost/sale info for public view."""
+    return {
+        "id": d.get("id"),
+        "year": d.get("year"),
+        "name": d.get("name"),
+        "sport": d.get("sport"),
+        "tags": d.get("tags") or [],
+        "status": d.get("status"),
+        "image_path": d.get("image_path"),
+        "images": d.get("images") or [],
+        "share_token": d.get("share_token"),
+    }
+
+
+@api_router.post("/cards/{card_id}/share")
+async def create_card_share(card_id: str, user: User = Depends(get_current_user)):
+    existing = await db.cards.find_one({"id": card_id, "user_id": user.user_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Card not found")
+    token = existing.get("share_token") or f"c_{uuid.uuid4().hex[:16]}"
+    await db.cards.update_one(
+        {"id": card_id, "user_id": user.user_id},
+        {"$set": {"share_token": token, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"share_token": token}
+
+
+@api_router.delete("/cards/{card_id}/share")
+async def revoke_card_share(card_id: str, user: User = Depends(get_current_user)):
+    r = await db.cards.update_one(
+        {"id": card_id, "user_id": user.user_id},
+        {"$set": {"share_token": None, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Card not found")
+    return {"ok": True}
+
+
+@api_router.post("/users/me/public-vault")
+async def toggle_public_vault(enabled: bool = True, user: User = Depends(get_current_user)):
+    if enabled:
+        existing = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+        token = existing.get("public_vault_token") or f"v_{uuid.uuid4().hex[:16]}"
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"public_vault_token": token}})
+        return {"public_vault_token": token, "enabled": True}
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"public_vault_token": None}})
+    return {"enabled": False}
+
+
+@api_router.get("/public/card/{token}")
+async def public_card(token: str):
+    d = await db.cards.find_one({"share_token": token}, {"_id": 0})
+    if not d:
+        raise HTTPException(status_code=404, detail="Not found")
+    owner = await db.users.find_one({"user_id": d["user_id"]}, {"_id": 0, "password_hash": 0, "email": 0})
+    return {
+        "card": _sanitize_card_public(d),
+        "owner": {"name": owner.get("name"), "avatar_path": owner.get("avatar_path")} if owner else None,
+    }
+
+
+@api_router.get("/public/vault/{token}")
+async def public_vault(token: str):
+    owner = await db.users.find_one({"public_vault_token": token}, {"_id": 0, "password_hash": 0, "email": 0})
+    if not owner:
+        raise HTTPException(status_code=404, detail="Not found")
+    docs = await db.cards.find({"user_id": owner["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return {
+        "owner": {"name": owner.get("name"), "avatar_path": owner.get("avatar_path"), "public_vault_token": token},
+        "cards": [_sanitize_card_public(d) for d in docs],
+    }
+
+
+@api_router.get("/public/image/{token}/{path:path}")
+async def public_image(token: str, path: str):
+    # Allowed if the token is a card share_token AND the path matches that card's image(s)
+    card = await db.cards.find_one({"share_token": token}, {"_id": 0})
+    owner_id = None
+    allowed_paths: set = set()
+    if card:
+        owner_id = card["user_id"]
+        if card.get("image_path"):
+            allowed_paths.add(card["image_path"])
+        for p in (card.get("images") or []):
+            allowed_paths.add(p)
+    else:
+        # Try vault token: any image referenced by any card of that user + user avatar
+        user = await db.users.find_one({"public_vault_token": token}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="Not found")
+        owner_id = user["user_id"]
+        cards = await db.cards.find({"user_id": owner_id}, {"_id": 0, "image_path": 1, "images": 1}).to_list(5000)
+        for c in cards:
+            if c.get("image_path"):
+                allowed_paths.add(c["image_path"])
+            for p in (c.get("images") or []):
+                allowed_paths.add(p)
+        if user.get("avatar_path"):
+            allowed_paths.add(user["avatar_path"])
+
+    if path not in allowed_paths:
+        raise HTTPException(status_code=404, detail="Not found")
+    record = await db.files.find_one({"storage_path": path, "is_deleted": False, "user_id": owner_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Not found")
+    data, content_type = get_object(path)
+    return Response(content=data, media_type=record.get("content_type") or content_type)
+
+
+# ============ AI Price Estimation ============
+@api_router.post("/watchlist/{item_id}/estimate")
+async def estimate_price(item_id: str, user: User = Depends(get_current_user)):
+    item = await db.watchlist.find_one({"id": item_id, "user_id": user.user_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM unavailable: {e}")
+
+    prompt = (
+        "You are a sports-trading-card market expert. Based ONLY on the card info below, "
+        "estimate a realistic current secondary-market price range (USD) for this card in typical "
+        "near-mint ungraded condition. Respond with ONLY a compact JSON object with keys: "
+        "low (number), high (number), typical (number), note (short string, max 220 chars). "
+        "No commentary, no code fences, no trailing text."
+        f"\n\nCard:\nYear: {item.get('year')}\nName: {item.get('name')}\n"
+        f"Sport: {item.get('sport') or 'Unknown'}\nTags: {', '.join(item.get('tags') or [])}\n"
+        f"Notes: {item.get('notes') or ''}"
+    )
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"est-{user.user_id}-{item_id}",
+            system_message="You output only valid JSON. Never include markdown fences."
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        reply = await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:
+        logger.error(f"Estimate error: {e}")
+        raise HTTPException(status_code=502, detail="Estimation failed")
+
+    import json as _json
+    text = (reply or "").strip()
+    # Strip code fences if present
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        raise HTTPException(status_code=502, detail="Unexpected AI response")
+    try:
+        parsed = _json.loads(text[start:end + 1])
+    except Exception:
+        raise HTTPException(status_code=502, detail="Could not parse AI response")
+
+    result = {
+        "low": float(parsed.get("low") or 0),
+        "high": float(parsed.get("high") or 0),
+        "typical": float(parsed.get("typical") or 0),
+        "note": str(parsed.get("note") or "")[:240],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.watchlist.update_one(
+        {"id": item_id, "user_id": user.user_id},
+        {"$set": {"ai_estimate": result, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return result
 
 
 @api_router.get("/files/{path:path}")

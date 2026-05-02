@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Upload, Image as ImageIcon } from "lucide-react";
 import TagInput from "./TagInput";
+import MultiImageManager from "./MultiImageManager";
 import { SPORTS } from "../lib/sports";
 
 const empty = {
@@ -22,7 +23,7 @@ const empty = {
   sold_date: "",
 };
 
-export default function CardFormModal({ open, onClose, onSave, card }) {
+export default function CardFormModal({ open, onClose, onSave, card, onCardMutated }) {
   const [form, setForm] = useState(empty);
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
@@ -166,21 +167,27 @@ export default function CardFormModal({ open, onClose, onSave, card }) {
           </div>
 
           <div>
-            <Label className="text-xs tracking-widest uppercase text-neutral-400">Image (optional)</Label>
-            <label htmlFor="card-img" className="mt-1.5 cursor-pointer flex items-center gap-3 rounded-md border border-dashed border-white/15 bg-[#0A0A0A] p-3 hover:border-white/30 transition" data-testid="form-image-upload">
-              {filePreview ? (
-                <img src={filePreview} alt="preview" className="h-14 w-14 object-cover rounded-md" />
-              ) : (
-                <div className="h-14 w-14 rounded-md bg-black/40 grid place-items-center text-neutral-500">
-                  <ImageIcon className="h-5 w-5" />
-                </div>
-              )}
-              <div className="flex-1 text-sm text-neutral-400">
-                <div className="text-white font-semibold flex items-center gap-2"><Upload className="h-3.5 w-3.5" /> {file ? file.name : "Choose an image"}</div>
-                <div className="text-xs">PNG, JPG, WEBP — up to 8MB</div>
+            <Label className="text-xs tracking-widest uppercase text-neutral-400">{card ? "Images" : "Image (optional)"}</Label>
+            {card ? (
+              <div className="mt-1.5">
+                <MultiImageManager card={card} onChange={(updated) => onCardMutated?.(updated)} />
               </div>
-              <input id="card-img" type="file" accept="image/*" className="hidden" onChange={onFileChange} />
-            </label>
+            ) : (
+              <label htmlFor="card-img" className="mt-1.5 cursor-pointer flex items-center gap-3 rounded-md border border-dashed border-white/15 bg-[#0A0A0A] p-3 hover:border-white/30 transition" data-testid="form-image-upload">
+                {filePreview ? (
+                  <img src={filePreview} alt="preview" className="h-14 w-14 object-cover rounded-md" />
+                ) : (
+                  <div className="h-14 w-14 rounded-md bg-black/40 grid place-items-center text-neutral-500">
+                    <ImageIcon className="h-5 w-5" />
+                  </div>
+                )}
+                <div className="flex-1 text-sm text-neutral-400">
+                  <div className="text-white font-semibold flex items-center gap-2"><Upload className="h-3.5 w-3.5" /> {file ? file.name : "Choose an image"}</div>
+                  <div className="text-xs">PNG, JPG, WEBP — up to 8MB. Add more after saving.</div>
+                </div>
+                <input id="card-img" type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+              </label>
+            )}
           </div>
 
           <DialogFooter className="gap-2">

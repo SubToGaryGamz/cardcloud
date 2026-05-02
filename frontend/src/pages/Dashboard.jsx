@@ -292,6 +292,7 @@ export default function Dashboard() {
                 onDelete={() => onDelete(c)}
                 onQuickSell={() => setQuickSellCard(c)}
                 onTagClick={(t) => setTagFilter(t)}
+                onShareChanged={bumpRefresh}
               />
             ))}
           </div>
@@ -303,6 +304,7 @@ export default function Dashboard() {
         onClose={() => { setModalOpen(false); setEditing(null); }}
         onSave={onSave}
         card={editing}
+        onCardMutated={(updated) => { setEditing(updated); bumpRefresh(); }}
       />
 
       <QuickSellModal

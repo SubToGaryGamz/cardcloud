@@ -4,7 +4,8 @@ import SiteHeader from "../components/SiteHeader";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Upload, Save, User as UserIcon } from "lucide-react";
+import { Switch } from "../components/ui/switch";
+import { Upload, Save, User as UserIcon, Share2, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 
@@ -63,6 +64,25 @@ export default function Profile() {
     } finally { setSaving(false); }
   };
 
+  const vaultToken = user?.public_vault_token || null;
+  const vaultUrl = vaultToken ? `${window.location.origin}/s/v/${vaultToken}` : "";
+
+  const toggleVault = async (enabled) => {
+    try {
+      await api.post("/users/me/public-vault", null, { params: { enabled } });
+      await refresh();
+      toast.success(enabled ? "Public vault enabled" : "Public vault disabled");
+    } catch (e) {
+      toast.error("Could not update");
+    }
+  };
+
+  const copyVaultLink = async () => {
+    if (!vaultUrl) return;
+    try { await navigator.clipboard.writeText(vaultUrl); toast.success("Link copied"); }
+    catch (e) { toast.error("Copy failed"); }
+  };
+
   return (
     <div className="min-h-screen bg-[#0A0A0A] bg-grain">
       <SiteHeader />
@@ -115,6 +135,37 @@ export default function Profile() {
               </Button>
             </div>
           </form>
+        </div>
+
+        {/* Public Vault Showcase */}
+        <div className="rounded-lg bg-[#141414] border border-white/10 p-6 sm:p-8 mt-6 fade-up" data-testid="public-vault-card">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-neutral-500 font-semibold">
+                <Share2 className="h-3.5 w-3.5" /> Showcase
+              </div>
+              <h2 className="font-display text-2xl tracking-tight font-black uppercase mt-1">Public Vault</h2>
+              <p className="text-neutral-400 text-sm mt-2 max-w-md">
+                Share a read-only view of your collection. Images, names, sports, and tags are shown — costs, sales, and profit stay private.
+              </p>
+            </div>
+            <Switch checked={!!vaultToken} onCheckedChange={toggleVault} data-testid="public-vault-toggle" />
+          </div>
+
+          {vaultToken && (
+            <div className="mt-5 space-y-2">
+              <Label className="text-xs tracking-widest uppercase text-neutral-400">Share link</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={vaultUrl} className="bg-[#0A0A0A] border-white/10 font-mono text-xs" data-testid="public-vault-link" />
+                <Button type="button" variant="outline" onClick={copyVaultLink} className="bg-transparent border-white/15 text-white hover:bg-white/5" data-testid="copy-vault-link">
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button type="button" variant="outline" asChild className="bg-transparent border-white/15 text-white hover:bg-white/5" data-testid="open-vault-link">
+                  <a href={vaultUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a>
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
