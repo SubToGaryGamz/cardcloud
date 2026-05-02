@@ -40,6 +40,10 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
   const profit = sold ? (Number(card.price_sold || 0) - Number(card.price_paid || 0) - Number(card.expenses || 0)) : null;
   const tags = card.tags || [];
   const extraCount = Math.max(0, urls.length - 1);
+  const profitPositive = sold && (profit ?? 0) >= 0;
+  const wrapperClass = sold
+    ? `card-tile rounded-lg overflow-hidden flex flex-col border-2 ${profitPositive ? "border-[#34C759]/40 bg-gradient-to-br from-[#34C759]/8 to-[#141414] shadow-glow-green" : "border-[#FF3B30]/40 bg-gradient-to-br from-[#FF3B30]/8 to-[#141414] shadow-glow-red"}`
+    : "card-tile rounded-lg overflow-hidden flex flex-col border border-l-4 border-l-[#007AFF]/70 border-white/10 bg-[#141414]";
 
   const copyShareLink = async () => {
     try {
@@ -71,23 +75,37 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
   };
 
   return (
-    <div className="card-tile rounded-lg bg-[#141414] border border-white/10 overflow-hidden flex flex-col" data-testid={`card-item-${card.id}`}>
+    <div className={wrapperClass} data-testid={`card-item-${card.id}`} data-status={card.status}>
       <div
-        className="aspect-[3/4] relative bg-gradient-to-br from-[#1a1a1a] to-[#0c0c0c] cursor-pointer"
+        className="aspect-[3/4] relative bg-gradient-to-br from-[#1a1a1a] to-[#0c0c0c] cursor-pointer overflow-hidden"
         onClick={() => urls.length > 0 && setLightbox(true)}
         data-testid={`card-image-${card.id}`}
       >
         {urls.length > 0 ? (
-          <img src={urls[0]} alt={card.name} className="absolute inset-0 w-full h-full object-cover" />
+          <img
+            src={urls[0]}
+            alt={card.name}
+            className={`absolute inset-0 w-full h-full object-cover transition ${sold ? "opacity-90 saturate-[0.85] contrast-[0.95]" : ""}`}
+          />
         ) : (
           <div className="absolute inset-0 grid place-items-center text-neutral-700">
             <ImageIcon className="h-14 w-14" strokeWidth={1.5} />
           </div>
         )}
-        <span className={`absolute top-3 left-3 text-[10px] px-2 py-1 uppercase tracking-[0.18em] font-bold rounded-sm border ${
+
+        {/* Sold diagonal ribbon */}
+        {sold && (
+          <div className="absolute -right-12 top-5 rotate-45 pointer-events-none" data-testid={`card-sold-ribbon-${card.id}`}>
+            <div className={`px-12 py-1 text-[10px] font-black tracking-[0.3em] uppercase shadow-lg ${profitPositive ? "bg-[#34C759] text-black" : "bg-[#FF3B30] text-white"}`}>
+              Sold
+            </div>
+          </div>
+        )}
+
+        <span className={`absolute top-3 left-3 text-[10px] px-2 py-1 uppercase tracking-[0.18em] font-bold rounded-sm border backdrop-blur-sm ${
           sold
-            ? "bg-[#34C759]/15 text-[#34C759] border-[#34C759]/30"
-            : "bg-[#007AFF]/15 text-[#007AFF] border-[#007AFF]/30"
+            ? (profitPositive ? "bg-[#34C759]/20 text-[#34C759] border-[#34C759]/40" : "bg-[#FF3B30]/20 text-[#FF3B30] border-[#FF3B30]/40")
+            : "bg-[#007AFF]/20 text-[#4aa3ff] border-[#007AFF]/40 ring-1 ring-[#007AFF]/20"
         }`}>
           {sold ? "Sold" : "In Collection"}
         </span>
@@ -140,17 +158,27 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
             <div className="text-neutral-500 uppercase tracking-wider text-[10px]">Paid</div>
             <div className="text-white font-semibold mt-0.5">${Number(card.price_paid || 0).toFixed(2)}</div>
           </div>
-          <div className="rounded-md bg-black/40 border border-white/5 p-2">
-            <div className="text-neutral-500 uppercase tracking-wider text-[10px]">{sold ? "Sold for" : "Expenses"}</div>
-            <div className="text-white font-semibold mt-0.5">
+          <div className={`rounded-md ${sold ? (profitPositive ? "bg-[#34C759]/10 border border-[#34C759]/30" : "bg-[#FF3B30]/10 border border-[#FF3B30]/30") : "bg-black/40 border border-white/5"} p-2`}>
+            <div className={`uppercase tracking-wider text-[10px] ${sold ? (profitPositive ? "text-[#34C759]/80" : "text-[#FF3B30]/80") : "text-neutral-500"}`}>
+              {sold ? "Sold for" : "Expenses"}
+            </div>
+            <div className={`font-semibold mt-0.5 ${sold ? (profitPositive ? "text-[#34C759]" : "text-[#FF3B30]") : "text-white"}`}>
               ${sold ? Number(card.price_sold || 0).toFixed(2) : Number(card.expenses || 0).toFixed(2)}
             </div>
           </div>
         </div>
 
         {sold && (
-          <div className={`mt-2 text-xs font-bold uppercase tracking-wider ${profit >= 0 ? "text-[#34C759]" : "text-[#FF3B30]"}`} data-testid={`card-profit-${card.id}`}>
-            {profit >= 0 ? "+" : "−"}${Math.abs(profit).toFixed(2)} profit
+          <div
+            className={`mt-3 rounded-md p-3 border ${profitPositive ? "bg-[#34C759]/15 border-[#34C759]/40" : "bg-[#FF3B30]/15 border-[#FF3B30]/40"}`}
+            data-testid={`card-profit-${card.id}`}
+          >
+            <div className={`text-[10px] uppercase tracking-[0.2em] font-bold ${profitPositive ? "text-[#34C759]" : "text-[#FF3B30]"}`}>
+              {profitPositive ? "Profit" : "Loss"}
+            </div>
+            <div className={`font-display text-2xl tracking-tight font-black mt-0.5 ${profitPositive ? "text-[#34C759]" : "text-[#FF3B30]"}`}>
+              {profit >= 0 ? "+" : "−"}${Math.abs(profit).toFixed(2)}
+            </div>
           </div>
         )}
 
