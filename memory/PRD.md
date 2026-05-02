@@ -38,22 +38,25 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 - Multi-user, isolated data
 
 ## Implemented (Feb 2026)
-- ✅ JWT email/password auth (register/login/me/logout)
-- ✅ Emergent Google OAuth flow with /auth/callback + AuthCallback handling location.hash
+- ✅ JWT email/password auth + Emergent Google OAuth
 - ✅ Object storage for card images + user avatars, owner-scoped file access
 - ✅ Cards CRUD + stats + CSV export/import
-- ✅ Search/filter by name, year, status, sport, and tag; `q` searches name/tags/sport
+- ✅ Search/filter by name, year, status, sport, and tag
 - ✅ Dashboard with 4 stat cards, color-coded profit
-- ✅ Bento card grid with image thumbnails, sport badges, tag chips, status badges, per-card profit
-- ✅ Dark sporty theme with Barlow Condensed + DM Sans
+- ✅ Dark sporty theme; Barlow Condensed + DM Sans
 - ✅ Quick Sell per-card action
-- ✅ Purchased/Sold date fields + time-range filter (All/30d/90d/1y)
-- ✅ Charts: profit-over-time (area) + cards-by-year (bar)
-- ✅ **Sport field** (Baseball, Basketball, Football, Hockey, Soccer, Golf, Tennis, Boxing/MMA, Wrestling, Racing, Pokemon, Other)
-- ✅ **Tags** (free-form, lowercase-normalized, click-to-filter, tag cloud, /cards/tags aggregation)
-- ✅ **Watchlist** page: target cards + notes + target price; one-click "Acquired" converts into a collection card
-- ✅ **User Profile** page with editable name + avatar upload
-- ✅ **CardCloud rebrand** with cloud logo + unified SiteHeader nav
+- ✅ Purchased/Sold date fields + time-range filter
+- ✅ Charts: profit-over-time + cards-by-year
+- ✅ Sport field + Tags (click-to-filter, tag cloud)
+- ✅ Watchlist CRUD + Acquire flow
+- ✅ User Profile + avatar upload
+- ✅ CardCloud rebrand with cloud logo
+- ✅ **Multi-image per card** (manage + lightbox + multi-image storage)
+- ✅ **Watchlist price suggestions** — eBay sold-comps link + AI estimate via Claude (emergentintegrations)
+- ✅ **Public Showcase** — per-card share link (`/s/c/<token>`) + whole-vault public toggle (`/s/v/<token>`). Sanitized read-only: hides cost/sales/fees.
+
+## Known Notes
+- EMERGENT_LLM_KEY has a small budget cap in dev. If AI estimates return 502, top up in Profile → Universal Key → Add Balance.
 
 ## Backlog (Prioritised)
 - P1: User profile + avatar upload
