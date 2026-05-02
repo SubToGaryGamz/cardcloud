@@ -101,6 +101,20 @@ export default function Landing() {
               <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> Google or email login</li>
               <li className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-[#34C759]" /> CSV import & export</li>
             </ul>
+
+            {/* Unlimited-cards differentiator */}
+            <div className="mt-8 inline-flex items-start gap-3 rounded-lg border border-[#34C759]/30 bg-[#34C759]/8 px-4 py-3 max-w-xl" data-testid="unlimited-cards-callout">
+              <div className="h-8 w-8 shrink-0 rounded-md bg-[#34C759]/20 border border-[#34C759]/40 grid place-items-center text-[#34C759]">
+                <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.25em] text-[#34C759] font-black">Unlimited cards · Always</div>
+                <div className="text-sm text-neutral-300 mt-0.5">
+                  Track <span className="text-white font-bold">100, 10,000, or 100,000</span> cards on the free plan.
+                  No caps, no per-card fees, no &ldquo;upgrade to add more.&rdquo; <span className="text-neutral-500">Unlike the other guys.</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Floating stat badges */}
@@ -127,7 +141,7 @@ export default function Landing() {
       <section className="border-y border-white/10 bg-black/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
-            { k: "Cards tracked", v: "Every. Single. One." },
+            { k: "Cards tracked", v: "Unlimited · No caps" },
             { k: "Per-card profit", v: "Auto-calculated" },
             { k: "Data import", v: "CSV in seconds" },
             { k: "Public showcase", v: "Share without leaking cost" },
@@ -216,7 +230,7 @@ export default function Landing() {
               </div>
               <p className="text-neutral-400 text-sm mt-3">Everything you need to track every flip.</p>
               <ul className="mt-6 space-y-2.5 text-sm text-neutral-300">
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Unlimited cards</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> <span className="text-white font-semibold">Unlimited cards</span> — no caps, ever</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Multi-image per card</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> 1 tag per card</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[#34C759] shrink-0" /> Charts, Best Flip, profit tracking</li>
