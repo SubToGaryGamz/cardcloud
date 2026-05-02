@@ -38,6 +38,7 @@ Make a page that shows 1. total sales 2. total price paid 3. profit.
 - Multi-user, isolated data
 
 ## Implemented (Feb 2026)
+- ✅ **Public Landing page at `/`** — hero, features grid, how-it-works, showcase callout, CTAs (auth-aware: "Get started" → "Open my vault")
 - ✅ JWT email/password auth + Emergent Google OAuth
 - ✅ Object storage for card images + user avatars
 - ✅ Cards CRUD + stats + CSV export/import

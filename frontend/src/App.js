@@ -2,6 +2,7 @@ import "@/App.css";
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Watchlist from "./pages/Watchlist";
@@ -39,7 +40,7 @@ function AppRouter() {
   }
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Landing />} />
       <Route path="/s/c/:token" element={<PublicCard />} />
       <Route path="/s/v/:token" element={<PublicVault />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
@@ -47,7 +48,7 @@ function AppRouter() {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
