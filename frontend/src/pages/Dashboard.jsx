@@ -3,19 +3,20 @@ import api from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2, Trophy, CheckSquare, Trash2 } from "lucide-react";
+import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2, Trophy, CheckSquare, Trash2, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
 import { toast } from "sonner";
 import CardFormModal from "../components/CardFormModal";
 import StatCard from "../components/StatCard";
 import CollectionCard from "../components/CollectionCard";
 import Charts from "../components/Charts";
 import QuickSellModal from "../components/QuickSellModal";
-import ImportCsvButton from "../components/ImportCsvButton";
 import SiteHeader from "../components/SiteHeader";
 import MobileBottomNav from "../components/MobileBottomNav";
 import BestFlipCard from "../components/BestFlipCard";
 import MonthlyGoalTile from "../components/MonthlyGoalTile";
 import YearInReviewModal from "../components/YearInReviewModal";
+import { Upload, HelpCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { SPORTS } from "../lib/sports";
 import { useBilling } from "../context/BillingContext";
@@ -48,6 +49,8 @@ export default function Dashboard() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const importFileRef = useRef(null);
+  const [importing, setImporting] = useState(false);
 
   const loadStats = async () => {
     try {
@@ -183,6 +186,30 @@ export default function Dashboard() {
     } finally { setBulkDeleting(false); }
   };
 
+  const onImportClick = () => {
+    if (!isPro) { toast.error("CSV import is a Pro feature. Upgrade in Profile."); navigate("/profile"); return; }
+    importFileRef.current?.click();
+  };
+  const onImportFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const r = await api.post("/cards/import", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const { imported = 0, skipped = 0 } = r.data || {};
+      toast.success(`Imported ${imported} card${imported === 1 ? "" : "s"}${skipped ? ` · ${skipped} skipped` : ""}`);
+      bumpRefresh();
+    } catch (err) {
+      if (err?.response?.status === 402) { toast.error("Pro required for CSV import"); navigate("/profile"); }
+      else toast.error(err?.response?.data?.detail || "Import failed");
+    } finally {
+      setImporting(false);
+      if (importFileRef.current) importFileRef.current.value = "";
+    }
+  };
+
   const onExport = async () => {
     if (!isPro) {
       toast.error("CSV export is a Pro feature. Upgrade in Profile.");
@@ -296,7 +323,7 @@ export default function Dashboard() {
               The Cloud
             </h1>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={range} onValueChange={setRange}>
               <SelectTrigger className="w-[140px] bg-[#141414] border-white/10" data-testid="time-range-select">
                 <SelectValue />
@@ -308,19 +335,48 @@ export default function Dashboard() {
                 <SelectItem value="1y">Last 12 months</SelectItem>
               </SelectContent>
             </Select>
-            <ImportCsvButton onImported={bumpRefresh} isPro={isPro} onLockedClick={() => navigate("/profile")} />
-            <Button variant="outline" onClick={onExport} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="export-csv-button">
-              {isPro ? <Download className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />} Export
-            </Button>
-            <Button variant="outline" onClick={onTaxExport} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="tax-export-button">
-              {isPro ? <FileText className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />} Tax 8949
-            </Button>
-            <Button variant="outline" onClick={() => setRecapOpen(true)} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="year-recap-button">
-              <Sparkles className="h-4 w-4 mr-2 text-[#FFD60A]" /> My Recap
-            </Button>
-            <Link to="/leaderboard" className="inline-flex items-center justify-center px-4 h-10 rounded-md border border-white/20 text-white hover:bg-white/5 text-sm font-bold uppercase tracking-wide transition" data-testid="leaderboard-link">
-              <Trophy className="h-4 w-4 mr-2 text-[#FFD60A]" /> Leaderboard
-            </Link>
+
+            {/* Hidden file input for Import-CSV menu item */}
+            <input ref={importFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onImportFile} data-testid="import-csv-file-input" />
+
+            {/* Overflow menu — groups secondary actions so the primary CTAs breathe */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="bg-transparent border-white/20 text-white hover:bg-white/5 h-10 px-3" data-testid="dashboard-more-menu">
+                  <MoreHorizontal className="h-4 w-4 mr-2" /> More
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-[#141414] border-white/10 text-white w-56">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.25em] text-neutral-500 font-bold">Import &amp; export</DropdownMenuLabel>
+                <DropdownMenuItem onClick={onImportClick} data-testid="menu-import-csv" className="cursor-pointer">
+                  {isPro ? <Upload className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+                  <span className="flex-1">{importing ? "Importing…" : "Import CSV"}</span>
+                  {!isPro && <span className="text-[9px] uppercase tracking-widest font-black bg-[#FFD60A]/20 text-[#FFD60A] px-1 py-0.5 rounded-sm ml-2">Pro</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/help/csv-import")} className="cursor-pointer" data-testid="menu-csv-help">
+                  <HelpCircle className="h-4 w-4 mr-2" /> CSV format guide
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onExport} data-testid="menu-export-csv" className="cursor-pointer">
+                  {isPro ? <Download className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+                  <span className="flex-1">Export CSV</span>
+                  {!isPro && <span className="text-[9px] uppercase tracking-widest font-black bg-[#FFD60A]/20 text-[#FFD60A] px-1 py-0.5 rounded-sm ml-2">Pro</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onTaxExport} data-testid="menu-tax-export" className="cursor-pointer">
+                  {isPro ? <FileText className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+                  <span className="flex-1">Tax 8949 export</span>
+                  {!isPro && <span className="text-[9px] uppercase tracking-widest font-black bg-[#FFD60A]/20 text-[#FFD60A] px-1 py-0.5 rounded-sm ml-2">Pro</span>}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.25em] text-neutral-500 font-bold">Highlights</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => setRecapOpen(true)} data-testid="menu-year-recap" className="cursor-pointer">
+                  <Sparkles className="h-4 w-4 mr-2 text-[#FFD60A]" /> My Recap
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/leaderboard")} data-testid="menu-leaderboard" className="cursor-pointer">
+                  <Trophy className="h-4 w-4 mr-2 text-[#FFD60A]" /> Leaderboard
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Button onClick={() => { setEditing(null); setModalOpen(true); }} className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid="add-card-button">
               <Plus className="h-4 w-4 mr-2" /> Add Card
             </Button>

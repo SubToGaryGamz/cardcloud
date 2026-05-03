@@ -31,6 +31,7 @@ export default function Leaderboard() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setRows([]); // clear stale rows so we don't render profit-metric shapes under cards-metric label (fixes card_count null crash)
     axios.get(`${API}/leaderboard?metric=${metric}&limit=25`)
       .then((r) => { if (alive) setRows(r.data.rows || []); })
       .finally(() => { if (alive) setLoading(false); });
@@ -139,7 +140,7 @@ export default function Leaderboard() {
                         </div>
                       </>
                     ) : (
-                      <div className="mt-5 font-display text-3xl tracking-tighter font-black">{r.card_count.toLocaleString()} <span className="text-neutral-500 text-base font-bold uppercase tracking-widest">cards</span></div>
+                      <div className="mt-5 font-display text-3xl tracking-tighter font-black">{(r.card_count ?? 0).toLocaleString()} <span className="text-neutral-500 text-base font-bold uppercase tracking-widest">cards</span></div>
                     )}
                   </div>
                 );
@@ -174,7 +175,7 @@ export default function Leaderboard() {
                           <span className={`text-[9px] uppercase tracking-widest font-black px-1.5 py-0.5 rounded-sm shrink-0 ${tier.className}`}>{tier.label}</span>
                         </div>
                       ) : (
-                        <div className="font-display text-lg font-black tracking-tighter text-white shrink-0">{r.card_count.toLocaleString()}</div>
+                        <div className="font-display text-lg font-black tracking-tighter text-white shrink-0">{(r.card_count ?? 0).toLocaleString()}</div>
                       )}
                     </div>
                   );

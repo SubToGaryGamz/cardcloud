@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 10 — both user-reported issues are fixed and verified. (1) Leaderboard metric toggle no longer crashes on 'Most cards'; defensive setRows([]) + card_count ?? 0 prevents the previous 'Cannot read toLocaleString of null' white-screen. Podium + list render with numeric card counts (e.g. '31 cards'), active-pill flips correctly, rapid profit↔cards toggling is stable. (2) Dashboard title row is consolidated to 3 controls (time-range Select, 'More' DropdownMenu, Add Card). All 6 menu items present with correct testids and behaviors: menu-year-recap opens YearInReviewModal, menu-leaderboard routes to /leaderboard, menu-csv-help routes to /help/csv-import, hidden import-csv-file-input is in the DOM. Backend regression 6/6 pytest (leaderboard shape for both metrics + invalid metric + CSV import auth-required and multipart accepted). No new issues introduced.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (Recharts)", "issues": ["Pre-existing: Recharts emits width(-1)/height(-1) warnings on initial mount (also flagged in iter9 — harmless, not caused by this iteration)."]},
+      {"screen": "YearInReviewModal", "issues": ["Pre-existing a11y warning: Radix DialogContent missing Description/aria-describedby. Minor, not a regression."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_10.py",
+    "/app/test_reports/pytest/iter10_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Leaderboard.jsx defensive fix is correct: setRows([]) before refetch + (r.card_count ?? 0).toLocaleString() on both podium and list rows prevents the null-coalesce crash. Good.",
+    "Dashboard.jsx is now ~651 lines — still above the 700-line soft cap but growing; consider extracting (a) the title-row controls (Select + More menu + Add Card) and (b) the bulk-select floating bar into sub-components to keep Dashboard focused on data orchestration.",
+    "Good DX: menu items have consistent data-testid naming (menu-*) which makes e2e stable.",
+    "Minor: onExport and onTaxExport still read token via localStorage.getItem('cv_token') and build URL manually instead of going through the shared api instance — OK because it needs a blob response, but worth a comment explaining why fetch is used instead of axios.",
+    "Hidden file input uses className='hidden' (Tailwind) rather than display:none inline — functional, just noting for consistency.",
+    "Backend /api/leaderboard correctly sets card_count:null when metric!=cards and int when metric=cards — contract is clean and matches the new FE defensive rendering."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_10.py"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (leaderboard switch + dashboard consolidation + menu nav all verified)"},
+  "test_credentials": "demo@example.com / demo1234 (Pro, has cards). Login response key is 'token'.",
+  "seed_data_creation": "test_import_csv_multipart_accepted creates 2 TEST_iter10_import_* cards via multipart upload and deletes them via DELETE /api/cards/{id} in the same test. No other test data left behind.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Dashboard title row is now a DropdownMenu (More). To test menu items in Playwright: click [data-testid=dashboard-more-menu] with force=True, wait 500ms, then click the menu item (menu-import-csv, menu-csv-help, menu-export-csv, menu-tax-export, menu-year-recap, menu-leaderboard). Hidden file input is [data-testid=import-csv-file-input] — only verify via count/DOM query, do not click. Leaderboard metric toggles [data-testid=lb-metric-profit] and [data-testid=lb-metric-cards] — the cards metric row uses r.card_count ?? 0 defensively. Backend contract: /api/leaderboard?metric=profit returns rows with card_count:null; metric=cards returns card_count:int. Recharts width(-1) warnings are pre-existing noise.",
+  "rca of the issue": "Root cause (reported crash): On older build, when metric switched to 'cards', the new rows hadn't loaded yet but React rendered the existing profit-shaped rows under the 'cards' branch, which then called r.card_count.toLocaleString() — but card_count was null on those stale rows (backend sets card_count=null on profit metric). Fix: (a) clear rows and flip loading=true before re-fetching so the loading state renders instead of stale rows; (b) belt-and-braces (r.card_count ?? 0).toLocaleString() at both podium and list so even a stray null never crashes. Verified by rapid toggle stress-test in Playwright — no console errors, no white-screen. Reported layout issue: 7 buttons were wrapping onto 2 lines; consolidated into a single DropdownMenu 'More' so only 3 primary controls remain in the row. Verified at 1920x1080 — single-line, tidy."
+}
