@@ -306,6 +306,12 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> User:
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     if not user_doc:
         raise HTTPException(status_code=401, detail="User not found")
+    return _hydrate_user(user_doc)
+
+
+def _hydrate_user(user_doc: dict) -> User:
+    """Build a User model from a Mongo doc and fill in derived fields like is_admin."""
+    user_doc = dict(user_doc or {})
     user_doc["is_admin"] = _is_admin_email(user_doc.get("email"))
     return User(**user_doc)
 
@@ -351,7 +357,7 @@ async def register(req: RegisterReq):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
-    user = User(**{k: v for k, v in doc.items() if k != "password_hash"})
+    user = _hydrate_user({k: v for k, v in doc.items() if k != "password_hash"})
     return AuthResp(token=make_jwt(user_id), user=user)
 
 
@@ -362,7 +368,7 @@ async def login(req: LoginReq):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not bcrypt.checkpw(req.password.encode("utf-8"), u["password_hash"].encode("utf-8")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    user = User(**{k: v for k, v in u.items() if k != "password_hash"})
+    user = _hydrate_user({k: v for k, v in u.items() if k != "password_hash"})
     return AuthResp(token=make_jwt(user.user_id), user=user)
 
 
@@ -418,7 +424,7 @@ async def session_exchange(req: SessionReq):
     )
 
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    return AuthResp(token=session_token, user=User(**user_doc))
+    return AuthResp(token=session_token, user=_hydrate_user(user_doc))
 
 
 @api_router.get("/auth/me", response_model=User)
