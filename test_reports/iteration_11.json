@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 11 — Admin analytics /admin route + /api/admin/overview tested end-to-end. Backend: 15/15 pytest green (gating 401/403/200, full payload shape for users/monetization/engagement/beta/referrals, 30-day signup chart, AI-scan counter increments on direct ai_scan_events insert, regression on /auth/me + /billing/me + /cards/scan-image). Frontend: /admin renders all 6 required stat tiles, signup-chart, top-sports-chart (present because data exists), top-referrers-list not present (referrals.top_referrers empty — acceptable per contract). Gating verified: logged-out /admin → /login, non-admin /admin → /dashboard, nav-admin hidden for non-admin. ONE FUNCTIONAL BUG FOUND: /auth/login and /auth/register return user.is_admin=False even for ADMIN_EMAILS members — is_admin is only computed in get_current_user (for /auth/me). Result: nav-admin does NOT appear on first login; user must reload before the Admin link shows. Full page reload then /auth/me correctly returns is_admin=true and all admin functionality works.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login, /api/auth/register",
+        "issue": "Response user.is_admin is always False even when the email is in ADMIN_EMAILS. _is_admin_email() is called only in get_current_user (used by /auth/me), not in the login/register handlers. Frontend AuthContext.setToken(token, userData) stores the login response, so nav-admin is hidden until the user manually reloads the page (which triggers /auth/me). Verified: login response is_admin_in_login_response=False for demo@example.com, but /auth/me immediately after returns is_admin=True.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "First-login admin nav visibility",
+        "issue": "Admin user (demo@example.com) logs in, is routed to /dashboard, but nav-admin is not rendered because AuthContext user state came from the login response (is_admin=False). Link only appears after a page reload. Root cause is the backend bug above.",
+        "affected_selectors": ["[data-testid=nav-admin]"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "Admin · /admin", "issues": ["Pre-existing Recharts width(-1)/height(-1) warnings on initial mount of signup-chart + top-sports-chart (same warning flagged in iter9/iter10; harmless)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_11.py",
+    "/app/test_reports/pytest/iter11_results.xml"
+  ],
+  "action_items": [
+    "Backend fix (HIGH): in /api/auth/login and /api/auth/register, set the returned user.is_admin = _is_admin_email(user.email) before building AuthResp. Alternatively, construct the User via a shared helper that always applies _is_admin_email (same helper used by get_current_user). Without this, admins don't see the Admin nav link on first login.",
+    "Optional: also apply the fix to /api/auth/session (OAuth/Emergent session handler) for consistency — I did not explicitly test the OAuth branch."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py:354 and :365 construct User(**{...}) directly from the Mongo doc. is_admin defaults to False because ADMIN_EMAILS isn't consulted. Suggest extracting a small helper _hydrate_user(doc) -> User that always calls _is_admin_email and using it in register/login/session/get_current_user.",
+    "Admin.jsx renders fine but assumes user.is_admin is reliable from AuthContext. Once the backend fix lands, consider also having AuthContext.setToken refresh /auth/me before navigating — belt-and-braces for any future endpoint that forgets to hydrate is_admin.",
+    "Stat label 'AI scans · total' produces data-testid='stat-ai-scans-·-total' (contains a non-ASCII middle dot). Works but is fragile — consider slugifying labels to ASCII in the Stat component to keep testids stable if someone changes the label casing/punctuation.",
+    "/api/admin/overview is ~160 lines in a single endpoint function (server.py:1550-1711). Fine for now but growing — extract per-section aggregators (users_section, monetization_section, engagement_section) for readability once more sections are added.",
+    "server.py is now >2200 lines — well past the 700-line soft cap. Recommend splitting admin routes into routers/admin.py."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_11.py"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "90% — all required admin UI elements render and gating works; is_admin flag on first-login response is the one integration gap"},
+  "test_credentials": "demo@example.com / demo1234 (admin per ADMIN_EMAILS). Fresh non-admin users created as TEST_iter11_*@example.com via /api/auth/register (cleaned up at module teardown).",
+  "seed_data_creation": "TestAiScansCounter inserts one ai_scan_events doc with email starting TEST_iter11_scan_ directly via pymongo to verify the counter increments, then deletes it in the same test. Module-level teardown also deletes any residual TEST_iter11_* users and ai_scan_events. No admin-only state changes left behind.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Admin route is live at /admin; gated client-side by user.is_admin inside AuthContext and server-side by require_admin (403). Key testids: stat-total-users, stat-est.-mrr, stat-active-pro, stat-total-cards, stat-ai-scans-·-total (has a middle-dot U+00B7!), stat-beta-redemptions, signup-chart, top-sports-chart (conditional), top-referrers-list (conditional), nav-admin, admin-back, admin-refresh, admin-error. ADMIN_EMAILS env var in backend/.env = 'bmangrill@gmail.com,demo@example.com' (case-insensitive). After the login/register is_admin fix lands, re-run test_iteration_11.py and additionally verify nav-admin appears without a page reload immediately after logging in as demo — that's the only UI gap from this iteration.",
+  "rca of the issue": "RCA — nav-admin missing on first login: (1) Frontend AuthContext.setToken(token, userData) is called from Login with userData = loginResponse.user. (2) Backend login/register construct User(**doc) directly; User.is_admin has default False and _is_admin_email() is never called here. (3) SiteHeader renders nav-admin only when user?.is_admin, so the link is hidden. (4) On a subsequent full page reload, AuthContext.checkAuth() calls /auth/me, which DOES run _is_admin_email(), so the link then appears. Reproduction: login as demo@example.com via UI → observe nav bar = VAULT/WATCHLIST/PROFILE only (no ADMIN). Reload page → ADMIN appears. Mitigation: in server.py register() and login() (and session()), set user.is_admin = _is_admin_email(user.email) before returning AuthResp, or use a shared _hydrate_user() helper identical to get_current_user's. This is the same pattern already used in get_current_user line 309."
+}

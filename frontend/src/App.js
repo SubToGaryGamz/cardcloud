@@ -17,6 +17,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import CsvImportHelp from "./pages/CsvImportHelp";
 import Leaderboard from "./pages/Leaderboard";
+import Admin from "./pages/Admin";
 import { Toaster } from "./components/ui/sonner";
 
 function ProtectedRoute({ children }) {
@@ -59,6 +60,7 @@ function AppRouter() {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
       <Route path="/billing/success" element={<ProtectedRoute><BillingSuccess /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

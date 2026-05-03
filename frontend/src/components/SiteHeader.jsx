@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Cloud, LogOut, LayoutDashboard, Eye, User as UserIcon, Sun, Moon, Sparkles, Lock } from "lucide-react";
+import { Cloud, LogOut, LayoutDashboard, Eye, User as UserIcon, Sun, Moon, Sparkles, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -68,6 +68,7 @@ export default function SiteHeader() {
           <NavLink to="/dashboard" icon={LayoutDashboard} label="Vault" testId="nav-vault" />
           <NavLink to="/watchlist" icon={Eye} label="Watchlist" testId="nav-watchlist" locked={!isPro} />
           <NavLink to="/profile" icon={UserIcon} label="Profile" testId="nav-profile" />
+          {user?.is_admin && <NavLink to="/admin" icon={ShieldCheck} label="Admin" testId="nav-admin" />}
         </nav>
 
         <div className="flex items-center gap-2">

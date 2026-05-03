@@ -118,6 +118,7 @@ class User(BaseModel):
     auth_provider: str  # "email" | "google"
     is_pro: bool = False
     pro_expires_at: Optional[str] = None
+    is_admin: bool = False
     created_at: str
 
 
@@ -305,7 +306,23 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> User:
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     if not user_doc:
         raise HTTPException(status_code=401, detail="User not found")
+    user_doc["is_admin"] = _is_admin_email(user_doc.get("email"))
     return User(**user_doc)
+
+
+def _is_admin_email(email: Optional[str]) -> bool:
+    """Returns True if the given email is in the comma-separated ADMIN_EMAILS env var."""
+    if not email:
+        return False
+    raw = os.environ.get("ADMIN_EMAILS", "")
+    allowed = {e.strip().lower() for e in raw.split(",") if e.strip()}
+    return email.lower() in allowed
+
+
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user
 
 
 # ============ Auth routes ============
@@ -855,6 +872,19 @@ async def scan_card_image(file: UploadFile = File(...), user: User = Depends(get
         except Exception:
             year = None
 
+    confidence = float(parsed.get("confidence") or 0.0)
+
+    # Track AI scan usage for admin analytics (lightweight event log)
+    try:
+        await db.ai_scan_events.insert_one({
+            "user_id": user.user_id,
+            "email": user.email,
+            "confidence": confidence,
+            "ts": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass  # don't fail the user-facing scan over a metrics write
+
     return {
         "year": year,
         "name": (parsed.get("name") or "").strip()[:120] or None,
@@ -862,7 +892,7 @@ async def scan_card_image(file: UploadFile = File(...), user: User = Depends(get
         "set": (parsed.get("set") or "").strip()[:80] or None,
         "tags": tags,
         "condition_suggestion": (parsed.get("condition_suggestion") or "").strip()[:60] or None,
-        "confidence": float(parsed.get("confidence") or 0.0),
+        "confidence": confidence,
     }
 
 
@@ -1514,6 +1544,171 @@ async def get_referral(user: User = Depends(get_current_user)):
 
 
 # ============ End leaderboard/goals/referrals ============
+
+
+# ============ Admin analytics ============
+@api_router.get("/admin/overview")
+async def admin_overview(user: User = Depends(require_admin)):
+    """Operator-level analytics. Aggregates across all users.
+    Gated to ADMIN_EMAILS env var. Returns growth, monetization, engagement, beta, referrals.
+    """
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    iso_today = today_start.isoformat()
+    iso_7d = (today_start - timedelta(days=7)).isoformat()
+    iso_30d = (today_start - timedelta(days=30)).isoformat()
+    now_iso = now.isoformat()
+
+    # ---- Users / Growth ----
+    total_users = await db.users.count_documents({})
+    new_today = await db.users.count_documents({"created_at": {"$gte": iso_today}})
+    new_7d = await db.users.count_documents({"created_at": {"$gte": iso_7d}})
+    new_30d = await db.users.count_documents({"created_at": {"$gte": iso_30d}})
+
+    # 30-day signup chart: day → count
+    signup_chart = []
+    for i in range(29, -1, -1):
+        day = today_start - timedelta(days=i)
+        nxt = day + timedelta(days=1)
+        c = await db.users.count_documents({"created_at": {"$gte": day.isoformat(), "$lt": nxt.isoformat()}})
+        signup_chart.append({"date": day.strftime("%Y-%m-%d"), "count": c})
+
+    # ---- Monetization ----
+    active_pro = await db.users.count_documents({"is_pro": True, "pro_expires_at": {"$gte": now_iso}})
+    active_annual = await db.users.count_documents({"annual_pro": True, "pro_expires_at": {"$gte": now_iso}})
+    active_monthly = max(0, active_pro - active_annual)
+    ever_pro = await db.users.count_documents({"ever_pro": True})
+    expired_pro = max(0, ever_pro - active_pro)
+
+    # Revenue: sum from completed payment_transactions
+    rev_30d = 0.0
+    rev_lifetime = 0.0
+    try:
+        agg_life = await db.payment_transactions.aggregate([
+            {"$match": {"payment_status": "paid"}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+        ]).to_list(length=1)
+        if agg_life:
+            rev_lifetime = float(agg_life[0].get("total") or 0)
+        agg_30 = await db.payment_transactions.aggregate([
+            {"$match": {"payment_status": "paid", "updated_at": {"$gte": iso_30d}}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+        ]).to_list(length=1)
+        if agg_30:
+            rev_30d = float(agg_30[0].get("total") or 0)
+    except Exception:
+        pass
+
+    # Estimated MRR: monthly subs × $6 + annual subs × $65/12
+    est_mrr = round(active_monthly * 6 + active_annual * (65 / 12), 2)
+
+    # ---- Engagement ----
+    total_cards = await db.cards.count_documents({})
+    total_sold = await db.cards.count_documents({"status": "sold"})
+    cards_added_30d = await db.cards.count_documents({"created_at": {"$gte": iso_30d}})
+    ai_scans_total = await db.ai_scan_events.count_documents({})
+    ai_scans_30d = await db.ai_scan_events.count_documents({"ts": {"$gte": iso_30d}})
+
+    # Total profit logged across the platform
+    total_profit = 0.0
+    try:
+        agg = await db.cards.aggregate([
+            {"$match": {"status": "sold"}},
+            {"$group": {
+                "_id": None,
+                "sales": {"$sum": {"$ifNull": ["$price_sold", 0]}},
+                "paid": {"$sum": {"$ifNull": ["$price_paid", 0]}},
+                "fees": {"$sum": {"$ifNull": ["$expenses", 0]}},
+            }},
+        ]).to_list(length=1)
+        if agg:
+            row = agg[0]
+            total_profit = float((row.get("sales") or 0) - (row.get("paid") or 0) - (row.get("fees") or 0))
+    except Exception:
+        pass
+
+    # Top sports
+    top_sports = []
+    try:
+        sport_agg = await db.cards.aggregate([
+            {"$match": {"sport": {"$exists": True, "$nin": [None, ""]}}},
+            {"$group": {"_id": "$sport", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 6},
+        ]).to_list(length=6)
+        top_sports = [{"sport": r["_id"], "count": r["count"]} for r in sport_agg]
+    except Exception:
+        pass
+
+    # ---- Beta program ----
+    beta_redeemed = await db.users.count_documents({"beta_redeemed_code": {"$exists": True, "$ne": None}})
+    beta_redeemed_30d = await db.users.count_documents({"beta_redeemed_at": {"$gte": iso_30d}})
+
+    # ---- Referrals ----
+    total_signups_with_ref = await db.users.count_documents({"referred_by": {"$exists": True, "$ne": None}})
+    total_rewards_given = 0
+    try:
+        agg = await db.users.aggregate([
+            {"$match": {"referral_rewards_given": {"$gt": 0}}},
+            {"$group": {"_id": None, "total": {"$sum": "$referral_rewards_given"}}},
+        ]).to_list(length=1)
+        if agg:
+            total_rewards_given = int(agg[0].get("total") or 0)
+    except Exception:
+        pass
+
+    # Top 5 referrers
+    top_referrers = []
+    try:
+        rows = await db.users.find(
+            {"referral_rewards_given": {"$gt": 0}},
+            {"_id": 0, "name": 1, "email": 1, "referral_code": 1, "referral_rewards_given": 1},
+        ).sort("referral_rewards_given", -1).limit(5).to_list(length=5)
+        top_referrers = rows
+    except Exception:
+        pass
+
+    return {
+        "generated_at": now_iso,
+        "users": {
+            "total": total_users,
+            "new_today": new_today,
+            "new_7d": new_7d,
+            "new_30d": new_30d,
+            "signup_chart_30d": signup_chart,
+        },
+        "monetization": {
+            "active_pro": active_pro,
+            "active_monthly": active_monthly,
+            "active_annual": active_annual,
+            "ever_pro": ever_pro,
+            "expired_pro": expired_pro,
+            "est_mrr": est_mrr,
+            "revenue_30d": round(rev_30d, 2),
+            "revenue_lifetime": round(rev_lifetime, 2),
+        },
+        "engagement": {
+            "total_cards": total_cards,
+            "total_sold": total_sold,
+            "cards_added_30d": cards_added_30d,
+            "total_profit_logged": round(total_profit, 2),
+            "ai_scans_total": ai_scans_total,
+            "ai_scans_30d": ai_scans_30d,
+            "top_sports": top_sports,
+        },
+        "beta": {
+            "redeemed_total": beta_redeemed,
+            "redeemed_30d": beta_redeemed_30d,
+        },
+        "referrals": {
+            "signups_via_referral": total_signups_with_ref,
+            "rewards_granted": total_rewards_given,
+            "top_referrers": top_referrers,
+        },
+    }
+
+
+# ============ End admin analytics ============
 
 
 # ============ AI Price Estimation (REMOVED) ============
