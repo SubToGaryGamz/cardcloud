@@ -15,6 +15,7 @@ import PublicVault from "./pages/PublicVault";
 import BillingSuccess from "./pages/BillingSuccess";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import CsvImportHelp from "./pages/CsvImportHelp";
 import { Toaster } from "./components/ui/sonner";
 
 function ProtectedRoute({ children }) {
@@ -48,6 +49,7 @@ function AppRouter() {
       <Route path="/" element={<Landing />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/help/csv-import" element={<CsvImportHelp />} />
       <Route path="/s/c/:token" element={<PublicCard />} />
       <Route path="/s/v/:token" element={<PublicVault />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />

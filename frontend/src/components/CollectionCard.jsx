@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Pencil, Trash2, Image as ImageIcon, Zap, Tag as TagIcon, Share2, Copy, Eye, EyeOff, Award } from "lucide-react";
+import { Pencil, Trash2, Image as ImageIcon, Zap, Tag as TagIcon, Share2, Copy, Eye, EyeOff, Award, ExternalLink } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "./ui/dropdown-menu";
 import { toast } from "sonner";
 import api from "../lib/api";
@@ -44,6 +43,11 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
   const tags = card.tags || [];
   const extraCount = Math.max(0, urls.length - 1);
   const profitPositive = sold && (profit ?? 0) >= 0;
+
+  const ebayCompsUrl = () => {
+    const q = encodeURIComponent(`${card.year || ""} ${card.name || ""} ${(card.tags || []).slice(0, 3).join(" ")}`.trim());
+    return `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1`;
+  };
   const wrapperClass = sold
     ? `card-tile rounded-lg overflow-hidden flex flex-col border-2 ${profitPositive ? "border-[#34C759]/40 bg-gradient-to-br from-[#34C759]/8 to-[#141414] shadow-glow-green" : "border-[#FF3B30]/40 bg-gradient-to-br from-[#FF3B30]/8 to-[#141414] shadow-glow-red"}`
     : "card-tile rounded-lg overflow-hidden flex flex-col border border-l-4 border-l-[#007AFF]/70 border-white/10 bg-[#141414]";
@@ -234,25 +238,38 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
               <Zap className="h-3.5 w-3.5 mr-1.5" /> Quick Sell
             </Button>
           )}
-          <div className="grid grid-cols-2 gap-2">
+
+          <a
+            href={ebayCompsUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-1.5 h-9 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs uppercase tracking-wider font-bold transition"
+            data-testid={`view-comps-${card.id}`}
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> View sold comps
+          </a>
+
+          <div className="grid grid-cols-3 gap-2">
             <Button
               size="sm"
               variant="outline"
               onClick={onEdit}
-              className="bg-transparent border-white/15 text-white hover:bg-white/5 h-9"
+              className="bg-transparent border-white/15 text-white hover:bg-white/5 h-9 px-2"
               data-testid={`edit-card-${card.id}`}
+              title="Edit"
             >
-              <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+              <Pencil className="h-3.5 w-3.5 sm:mr-1.5" /> <span className="hidden sm:inline">Edit</span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="bg-transparent border-white/15 text-white hover:bg-white/5 h-9"
+                  className="bg-transparent border-white/15 text-white hover:bg-white/5 h-9 px-2"
                   data-testid={`more-card-${card.id}`}
+                  title="Share"
                 >
-                  <Share2 className="h-3.5 w-3.5 mr-1.5" /> Share
+                  <Share2 className="h-3.5 w-3.5 sm:mr-1.5" /> <span className="hidden sm:inline">Share</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-[#141414] border-white/10 text-white">
@@ -269,12 +286,18 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
                     <EyeOff className="h-3.5 w-3.5 mr-2" /> Revoke link
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuSeparator className="bg-white/10" />
-                <DropdownMenuItem onClick={onDelete} className="cursor-pointer focus:bg-[#FF3B30]/10 text-[#FF3B30]" data-testid={`delete-card-${card.id}`}>
-                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete card
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onDelete}
+              className="bg-transparent border-[#FF3B30]/30 text-[#FF3B30] hover:bg-[#FF3B30]/10 hover:text-[#FF3B30] h-9 px-2"
+              data-testid={`delete-card-${card.id}`}
+              title="Delete"
+            >
+              <Trash2 className="h-3.5 w-3.5 sm:mr-1.5" /> <span className="hidden sm:inline">Delete</span>
+            </Button>
           </div>
         </div>
       </div>
