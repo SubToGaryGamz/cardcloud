@@ -24,7 +24,7 @@ export default function SiteHeader() {
         const res = await api.get(`/files/${user.avatar_path}`, { responseType: "blob" });
         url = URL.createObjectURL(res.data);
         if (!revoked) setAvatarUrl(url);
-      } catch (e) { /* noop */ }
+      } catch (e) { if (process.env.NODE_ENV !== "production") console.warn("avatar load failed", e); }
     })();
     return () => { revoked = true; if (url) URL.revokeObjectURL(url); };
   }, [user?.avatar_path]);
