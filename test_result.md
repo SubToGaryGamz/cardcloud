@@ -101,3 +101,113 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: Validate the new growth features batch — Public Leaderboard, Referral system (?ref=CODE → +30 days for both on first paid subscribe), Monthly Profit Goal tile, Year-in-Review modal, and Annual "PRO MEMBER" badge.
+
+## backend:
+##   - task: "GET /api/leaderboard (public, profit/cards metrics)"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     status_history:
+##         - working: true
+##           agent: "main"
+##           comment: "curl returned 1 row with bar/handle/is_pro/is_annual_pro fields. metric=profit and metric=cards both supported."
+##   - task: "GET /api/me/referral + register accepts referral_code"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     status_history:
+##         - working: true
+##           agent: "main"
+##           comment: "Returns {code, referred_count, share_url, rewards_given_months}. /auth/register accepts referral_code body field."
+##   - task: "GET /api/me/monthly-progress + PUT /api/me/goal"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     status_history:
+##         - working: true
+##           agent: "main"
+##           comment: "Returns {month, profit, flips, goal, pct}; goal can be null to clear."
+##   - task: "GET /api/me/year-recap"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     status_history:
+##         - working: true
+##           agent: "main"
+##           comment: "Returns {year, total_profit, flips, cards_added, spend, best_flip, top_sport}."
+##   - task: "PUT /api/me/leaderboard-prefs"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     status_history:
+##         - working: true
+##           agent: "main"
+##           comment: "Accepts leaderboard_opt_out, leaderboard_show_name, leaderboard_handle (24-char max). Validated with curl."
+##   - task: "is_annual_pro flag on /api/billing/me"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     status_history:
+##         - working: true
+##           agent: "main"
+##           comment: "Returned correctly; uses annual_pro user flag AND active expiry."
+
+## frontend:
+##   - task: "Profile page Referral + Leaderboard prefs sections"
+##     implemented: true
+##     working: "NA"
+##     file: "frontend/src/pages/Profile.jsx"
+##     needs_retesting: true
+##     status_history:
+##         - working: "NA"
+##           agent: "main"
+##           comment: "Referral card + Leaderboard prefs card both wired and visible. Needs e2e test."
+##   - task: "Dashboard mounts MonthlyGoalTile + YearInReviewModal + Leaderboard link + My Recap button"
+##     implemented: true
+##     working: "NA"
+##     file: "frontend/src/pages/Dashboard.jsx"
+##     needs_retesting: true
+##     status_history:
+##         - working: "NA"
+##           agent: "main"
+##           comment: "Tile renders next to Best Flip; My Recap button opens YearInReviewModal; Leaderboard link present."
+##   - task: "Landing captures ?ref=CODE → Login.jsx sends referral_code on register"
+##     implemented: true
+##     working: "NA"
+##     file: "frontend/src/pages/Landing.jsx, frontend/src/pages/Login.jsx"
+##     needs_retesting: true
+##     status_history:
+##         - working: "NA"
+##           agent: "main"
+##           comment: "Landing.jsx writes ref to localStorage; Login.jsx onRegister reads and sends to /auth/register."
+##   - task: "Public Leaderboard page renders podium + list + opt-in tier badges"
+##     implemented: true
+##     working: "NA"
+##     file: "frontend/src/pages/Leaderboard.jsx"
+##     needs_retesting: true
+##     status_history:
+##         - working: "NA"
+##           agent: "main"
+##           comment: "Smoke screenshot rendered correctly with #1 Diamond tier and crown icon."
+
+## metadata:
+##   created_by: "main_agent"
+##   version: "1.1"
+##   test_sequence: 1
+##   run_ui: true
+
+## test_plan:
+##   current_focus:
+##     - "Public Leaderboard page renders podium + list + opt-in tier badges"
+##     - "Profile page Referral + Leaderboard prefs sections"
+##     - "Dashboard mounts MonthlyGoalTile + YearInReviewModal + Leaderboard link + My Recap button"
+##     - "Landing captures ?ref=CODE → Login.jsx sends referral_code on register"
+##   stuck_tasks: []
+##   test_all: false
+##   test_priority: "high_first"
+
+## agent_communication:
+##     - agent: "main"
+##       message: "Backend endpoints validated via curl on the demo account. Frontend wiring complete. Need e2e Playwright validation for Profile referral copy/leaderboard toggles, Dashboard goal tile + My Recap modal, and Leaderboard public page."

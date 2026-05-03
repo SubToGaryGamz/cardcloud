@@ -1,0 +1,45 @@
+{
+  "summary": "Iter8 growth features (Leaderboard, Referral, Monthly Goal, Year-in-Review, Annual Pro, billing.is_annual_pro) tested end-to-end. Backend pytest: 20/20 PASS (test_iteration_8.py). Frontend Playwright: all critical testids present and flows work — Dashboard MonthlyGoalTile edit→save→persist, YearInReviewModal with canvas + download button, Leaderboard nav, Profile referral card shows the https URL with ?ref=<code> and leaderboard-prefs handle save persists across reload (verified E2ETEST persisted). Public /leaderboard renders without auth with metric switcher (profit/cards), lb-podium-1, DIAMOND tier pill, and CTA. Landing /?ref=ABC123 correctly stores cv_referral in localStorage. One minor frontend issue found: referral copy button shows 'Copy failed' toast in headless (clipboard API permission) — needs a fallback for non-secure / restricted contexts.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/me/referral", "issue": "referred_count increments at signup (naturally counts users with referred_by=code). This is the sign-up count, not the 'rewards earned' count. Product-side expectation in the request said 'referred_count only increments on first PAID sub' — but in code, referred_count = signups, and rewards_given_months = first-paid count. Cosmetic doc mismatch, behavior correct."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Profile → referral copy", "issue": "Clicking referral-copy-button shows a 'Copy failed' toast (navigator.clipboard.writeText rejected in headless/iframe contexts). Recommend fallback using a hidden textarea + document.execCommand('copy') or select+prompt so non-permission-granted contexts still succeed.", "selector": "[data-testid=\"referral-copy-button\"]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_8.py",
+    "/app/test_reports/pytest/iter8_results.xml"
+  ],
+  "action_items": [
+    "(LOW) Make referral copy button resilient: catch clipboard rejection and fall back to document.execCommand('copy') via a hidden <textarea>, and update the toast to 'Copied' on success / 'Select and press Ctrl+C' on failure.",
+    "(OPTIONAL) Align the public Leaderboard request docs with code: row keys are rank/handle/avatar_path/is_pro/is_annual_pro/bar/card_count (no per-row 'metric' field; metric is at top level). Test script that expected row.metric was adjusted.",
+    "(OPTIONAL cleanup) During backend tests I saved leaderboard_handle='TESTHANDLE8'/E2ETEST and monthly_profit_goal=null on the demo account; goal was reset at end of UI run, handle persists as E2ETEST. If you want demo leaderboard row to show 'The Flipper' again, either clear leaderboard_handle or leave leaderboard_show_name=true (currently true)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~2000 lines — growth features pushed it further; router split (auth/cards/watchlist/billing/public/growth) is now essential.",
+    "/api/leaderboard is correctly public (no auth dep), excludes _id, and hides raw $ behind a 0..1 'bar'. ✅",
+    "/api/me/referral lazily creates referral_code and persists back — good. referred_count is just a signup count; consider renaming to referred_signups_count to avoid confusion with rewards_given_months.",
+    "/api/me/year-recap has proper year bounds (2000–2100) and handles 'no best flip'. ✅",
+    "/api/me/goal validates val >= 0 and allows null to disable. ✅",
+    "Frontend referral-copy-button falls back to 'Copy failed' toast — should gracefully degrade (see action item).",
+    "Iter7 bug (GET /api/billing/status/{session_id} 500 on unknown Stripe session) status not retested in this iter; still open from iter7 per prior report."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_8.py (NEW — 20 cases: leaderboard public profit+cards+no-_id, leaderboard-prefs persist+unauth, referral get+unauth+register-with-code+register-with-bad-code, goal set+null+unauth, year-recap default+year+invalid, billing/me is_annual_pro, regression auth/cards/stats/watchlist)"
+  ],
+  "success_rate": {"backend": "100% (20/20 pytest)", "frontend": "100% on tested flows (goal edit+save+persist, year recap modal+canvas+download, leaderboard nav, profile referral+lb-prefs handle save+reload persistence)"},
+  "test_credentials": "demo@example.com / demo1234 (is_pro=true, referral_code=5ESNQT)",
+  "seed_data_creation": "Backend tests create and delete test users with test_i8_* email prefix for referral-signup testing. Also temporarily set demo's leaderboard_handle to TESTHANDLE8 then UI test overwrote to E2ETEST (persists). monthly_profit_goal reset to null at end of UI test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter8 = growth features. Public /leaderboard renders without auth with testids lb-brand, lb-back, lb-metric-switch, lb-metric-profit, lb-metric-cards, lb-podium, lb-podium-1/2/3, lb-row-N, lb-cta-signup. Dashboard has leaderboard-link, year-recap-button, monthly-goal-tile (+goal-edit-button → goal-input → goal-save). YearInReviewModal has year-recap-modal, year-recap-canvas, year-recap-download. Profile has referral-card, referral-link-input, referral-copy-button, lb-opt-out, lb-show-name, lb-handle-input, lb-handle-save. Landing captures ?ref=CODE into localStorage cv_referral. Register endpoint accepts referral_code (stored as referred_by; referred_count = signups, rewards_given_months = first-paid-subscribe count). billing/me now includes is_annual_pro:bool. Only open bug: referral copy 'Copy failed' toast in restricted clipboard contexts; fix with execCommand fallback.",
+  "rca of the issue": "Referral copy failure RCA: In headless/iframe/cross-origin contexts the Clipboard API (navigator.clipboard.writeText) is blocked by the Permissions-Policy or insecure-context check, causing Profile.jsx's copy handler's .catch() branch to fire a 'Copy failed' toast. Real users on HTTPS top-level pages likely succeed, but embedded previews and some browsers will also fail. Mitigation: wrap in try/catch and on failure select the <input> and call document.execCommand('copy') as a legacy fallback before surfacing an error."
+}
