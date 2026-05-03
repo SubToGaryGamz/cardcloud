@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useBilling } from "../context/BillingContext";
 import { isNativePlatform } from "../lib/platform";
+import { copyText } from "../lib/clipboard";
 
 export default function Profile() {
   const { user, refresh } = useAuth();
@@ -52,8 +53,8 @@ export default function Profile() {
   const copyReferralLink = async () => {
     if (!referral?.code) return;
     const url = `${window.location.origin}/?ref=${referral.code}`;
-    try { await navigator.clipboard.writeText(url); toast.success("Referral link copied"); }
-    catch { toast.error("Copy failed"); }
+    if (await copyText(url)) toast.success("Referral link copied");
+    else toast.error("Couldn't copy — long-press the link to copy manually");
   };
 
   useEffect(() => {
@@ -116,8 +117,8 @@ export default function Profile() {
 
   const copyVaultLink = async () => {
     if (!vaultUrl) return;
-    try { await navigator.clipboard.writeText(vaultUrl); toast.success("Link copied"); }
-    catch (e) { toast.error("Copy failed"); }
+    if (await copyText(vaultUrl)) toast.success("Link copied");
+    else toast.error("Couldn't copy — long-press the link to copy manually");
   };
 
   const onSubscribe = async (packageId = "pro_monthly") => {

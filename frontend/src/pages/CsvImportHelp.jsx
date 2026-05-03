@@ -30,11 +30,15 @@ const SAMPLE_CSV = `Year,Name,Sport,Condition,Grade,Tags,Where Bought,Price Paid
 export default function CsvImportHelp() {
   const [copied, setCopied] = useState(false);
 
-  const copySample = () => {
-    navigator.clipboard.writeText(SAMPLE_CSV);
-    setCopied(true);
-    toast.success("Sample CSV copied to clipboard");
-    setTimeout(() => setCopied(false), 2200);
+  const copySample = async () => {
+    const { copyText } = await import("../lib/clipboard");
+    if (await copyText(SAMPLE_CSV)) {
+      setCopied(true);
+      toast.success("Sample CSV copied to clipboard");
+      setTimeout(() => setCopied(false), 2200);
+    } else {
+      toast.error("Couldn't copy — long-press to copy manually");
+    }
   };
 
   const downloadSample = () => {

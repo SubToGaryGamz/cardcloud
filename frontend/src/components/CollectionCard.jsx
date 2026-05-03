@@ -61,8 +61,9 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
         onShareChanged?.();
       }
       const link = `${window.location.origin}/api/share/c/${token}`;
-      await navigator.clipboard.writeText(link);
-      toast.success("Share link copied");
+      const { copyText } = await import("../lib/clipboard");
+      if (await copyText(link)) toast.success("Share link copied");
+      else toast.error("Couldn't copy — long-press to copy manually");
     } catch (e) {
       toast.error("Could not create link");
     }
