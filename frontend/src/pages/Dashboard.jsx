@@ -3,7 +3,7 @@ import api from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2, Trophy, CheckSquare, Trash2, MoreHorizontal } from "lucide-react";
+import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2, Trophy, CheckSquare, Trash2, MoreHorizontal, ChevronRight } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
 import { toast } from "sonner";
 import CardFormModal from "../components/CardFormModal";
@@ -16,7 +16,7 @@ import MobileBottomNav from "../components/MobileBottomNav";
 import BestFlipCard from "../components/BestFlipCard";
 import MonthlyGoalTile from "../components/MonthlyGoalTile";
 import YearInReviewModal from "../components/YearInReviewModal";
-import { Upload, HelpCircle } from "lucide-react";
+import { Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { SPORTS } from "../lib/sports";
 import { useBilling } from "../context/BillingContext";
@@ -348,13 +348,31 @@ export default function Dashboard() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-[#141414] border-white/10 text-white w-56">
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.25em] text-neutral-500 font-bold">Import &amp; export</DropdownMenuLabel>
-                <DropdownMenuItem onClick={onImportClick} data-testid="menu-import-csv" className="cursor-pointer">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    if (e.target?.closest?.('[data-csv-guide-arrow]')) {
+                      e.preventDefault();
+                      navigate("/help/csv-import");
+                    } else {
+                      onImportClick();
+                    }
+                  }}
+                  data-testid="menu-import-csv"
+                  className="cursor-pointer"
+                >
                   {isPro ? <Upload className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
                   <span className="flex-1">{importing ? "Importing…" : "Import CSV"}</span>
                   {!isPro && <span className="text-[9px] uppercase tracking-widest font-black bg-[#FFD60A]/20 text-[#FFD60A] px-1 py-0.5 rounded-sm ml-2">Pro</span>}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/help/csv-import")} className="cursor-pointer" data-testid="menu-csv-help">
-                  <HelpCircle className="h-4 w-4 mr-2" /> CSV format guide
+                  <span
+                    data-csv-guide-arrow
+                    role="button"
+                    aria-label="View CSV format guide"
+                    title="View CSV format guide"
+                    className="ml-2 -mr-1 h-6 w-6 grid place-items-center rounded hover:bg-white/15 text-neutral-400 hover:text-white transition"
+                    data-testid="menu-csv-help"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onExport} data-testid="menu-export-csv" className="cursor-pointer">
                   {isPro ? <Download className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}

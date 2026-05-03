@@ -38,8 +38,12 @@ export default function MultiImageManager({ card, onChange }) {
     if (!files.length) return;
     setBusy(true);
     try {
+      const { convertHeicIfNeeded, isHeic } = await import("../lib/heicConvert");
+      const heicCount = files.filter(isHeic).length;
+      if (heicCount > 0) toast.info(`Converting ${heicCount} HEIC photo${heicCount > 1 ? "s" : ""} to JPEG…`);
       let updated = null;
-      for (const f of files) {
+      for (const raw of files) {
+        const f = await convertHeicIfNeeded(raw);
         const fd = new FormData();
         fd.append("file", f);
         const r = await api.post(`/cards/${card.id}/image?replace=${!card.image_path ? "true" : "false"}`, fd, { headers: { "Content-Type": "multipart/form-data" } });
@@ -48,7 +52,7 @@ export default function MultiImageManager({ card, onChange }) {
       toast.success(`Added ${files.length} image${files.length > 1 ? "s" : ""}`);
       onChange?.(updated);
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Upload failed");
+      toast.error(err?.response?.data?.detail || err?.message || "Upload failed");
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -106,7 +110,7 @@ export default function MultiImageManager({ card, onChange }) {
             <Plus className="h-5 w-5 mx-auto" />
             <div className="text-[10px] uppercase tracking-widest mt-1 font-semibold">{busy ? "Uploading…" : "Add"}</div>
           </div>
-          <input id="multi-img-input" ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onAdd} />
+          <input id="multi-img-input" ref={fileRef} type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={onAdd} />
         </label>
       </div>
       <p className="text-[11px] text-neutral-500">Hover an image for options. First image is the primary (shown on the card tile).</p>

@@ -72,10 +72,13 @@ export default function Profile() {
   }, [user?.avatar_path]);
 
   const onAvatarChange = async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+    const raw = e.target.files?.[0];
+    if (!raw) return;
     setUploading(true);
     try {
+      const { convertHeicIfNeeded, isHeic } = await import("../lib/heicConvert");
+      if (isHeic(raw)) toast.info("Converting HEIC → JPEG…");
+      const f = await convertHeicIfNeeded(raw);
       const fd = new FormData();
       fd.append("file", f);
       await api.post("/users/me/avatar", fd, { headers: { "Content-Type": "multipart/form-data" } });
@@ -172,7 +175,7 @@ export default function Profile() {
               <div className="text-white font-display text-2xl font-bold">{user?.name}</div>
               <div className="text-neutral-400 text-sm">{user?.email}</div>
             </div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onAvatarChange} data-testid="avatar-file-input" />
+            <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className="hidden" onChange={onAvatarChange} data-testid="avatar-file-input" />
             <Button
               variant="outline"
               onClick={() => fileRef.current?.click()}

@@ -62,17 +62,33 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
     setScanFields(null);
   }, [card, open]);
 
-  const onFileChange = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setFilePreview(URL.createObjectURL(f));
+  const onFileChange = async (e) => {
+    const raw = e.target.files?.[0];
+    if (!raw) return;
+    try {
+      const { convertHeicIfNeeded, isHeic } = await import("../lib/heicConvert");
+      if (isHeic(raw)) toast.info("Converting HEIC → JPEG…");
+      const f = await convertHeicIfNeeded(raw);
+      setFile(f);
+      setFilePreview(URL.createObjectURL(f));
+    } catch (err) {
+      toast.error("Couldn't read this image — try a JPEG or PNG");
+    }
   };
 
   const onScan = async (e) => {
-    const f = e.target.files?.[0];
+    const raw = e.target.files?.[0];
     e.target.value = "";
-    if (!f) return;
+    if (!raw) return;
+    let f = raw;
+    try {
+      const { convertHeicIfNeeded, isHeic } = await import("../lib/heicConvert");
+      if (isHeic(raw)) toast.info("Converting HEIC → JPEG…");
+      f = await convertHeicIfNeeded(raw);
+    } catch (err) {
+      toast.error("Couldn't read this image — try a JPEG or PNG");
+      return;
+    }
     setFile(f);
     setFilePreview(URL.createObjectURL(f));
     setScanning(true);
@@ -165,7 +181,7 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
                     {scanning ? "Reading card…" : "Scan with AI"}
                     <input
                       type="file"
-                      accept="image/jpeg,image/png,image/webp"
+                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                       capture="environment"
                       className="hidden"
                       onChange={onScan}
@@ -309,7 +325,7 @@ export default function CardFormModal({ open, onClose, onSave, card, onCardMutat
                   <div className="text-white font-semibold flex items-center gap-2"><Upload className="h-3.5 w-3.5" /> {file ? file.name : "Choose an image"}</div>
                   <div className="text-xs">PNG, JPG, WEBP — up to 8MB. Add more after saving.</div>
                 </div>
-                <input id="card-img" type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+                <input id="card-img" type="file" accept="image/*,.heic,.heif" className="hidden" onChange={onFileChange} />
               </label>
             )}
           </div>
