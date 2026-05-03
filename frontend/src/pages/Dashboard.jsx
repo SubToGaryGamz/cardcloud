@@ -321,25 +321,6 @@ export default function Dashboard() {
             <Link to="/leaderboard" className="inline-flex items-center justify-center px-4 h-10 rounded-md border border-white/20 text-white hover:bg-white/5 text-sm font-bold uppercase tracking-wide transition" data-testid="leaderboard-link">
               <Trophy className="h-4 w-4 mr-2 text-[#FFD60A]" /> Leaderboard
             </Link>
-            {selectMode ? (
-              <Button
-                variant="outline"
-                onClick={exitSelectMode}
-                className="bg-transparent border-white/20 text-white hover:bg-white/5"
-                data-testid="select-mode-cancel"
-              >
-                <X className="h-4 w-4 mr-2" /> Done
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={enterSelectMode}
-                className="bg-transparent border-white/20 text-white hover:bg-white/5"
-                data-testid="select-mode-enter"
-              >
-                <CheckSquare className="h-4 w-4 mr-2" /> Select
-              </Button>
-            )}
             <Button onClick={() => { setEditing(null); setModalOpen(true); }} className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid="add-card-button">
               <Plus className="h-4 w-4 mr-2" /> Add Card
             </Button>
@@ -385,6 +366,29 @@ export default function Dashboard() {
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6" data-testid="best-flip-and-goal">
           <BestFlipCard since={range} refreshKey={refreshKey} />
           <MonthlyGoalTile refreshKey={refreshKey} />
+        </div>
+
+        {/* Bulk-select toggle (lives under the Monthly Goal tile) */}
+        <div className="mb-4 flex justify-end">
+          {selectMode ? (
+            <Button
+              variant="outline"
+              onClick={exitSelectMode}
+              className="bg-transparent border-white/20 text-white hover:bg-white/5"
+              data-testid="select-mode-cancel"
+            >
+              <X className="h-4 w-4 mr-2" /> Done selecting
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={enterSelectMode}
+              className="bg-transparent border-white/20 text-white hover:bg-white/5"
+              data-testid="select-mode-enter"
+            >
+              <CheckSquare className="h-4 w-4 mr-2" /> Select cards
+            </Button>
+          )}
         </div>
 
         {/* Search & filters */}
