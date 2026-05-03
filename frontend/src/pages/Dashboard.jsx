@@ -3,7 +3,7 @@ import api from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2, Trophy } from "lucide-react";
+import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2, Trophy, CheckSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import CardFormModal from "../components/CardFormModal";
 import StatCard from "../components/StatCard";
@@ -45,6 +45,9 @@ export default function Dashboard() {
   const [quickSellCard, setQuickSellCard] = useState(null);
   const [recapOpen, setRecapOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const loadStats = async () => {
     try {
@@ -153,6 +156,31 @@ export default function Dashboard() {
     } catch (e) {
       toast.error("Delete failed");
     }
+  };
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const enterSelectMode = () => { setSelectMode(true); setSelectedIds(new Set()); };
+  const toggleSelect = (card) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(card.id)) next.delete(card.id); else next.add(card.id);
+      return next;
+    });
+  };
+  const selectAllVisible = () => setSelectedIds(new Set(cards.map((c) => c.id)));
+  const onBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} card${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    try {
+      const r = await api.post("/cards/bulk-delete", { card_ids: ids });
+      toast.success(`Deleted ${r.data?.deleted ?? ids.length} card${(r.data?.deleted ?? ids.length) === 1 ? "" : "s"}`);
+      exitSelectMode();
+      bumpRefresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Bulk delete failed");
+    } finally { setBulkDeleting(false); }
   };
 
   const onExport = async () => {
@@ -293,6 +321,25 @@ export default function Dashboard() {
             <Link to="/leaderboard" className="inline-flex items-center justify-center px-4 h-10 rounded-md border border-white/20 text-white hover:bg-white/5 text-sm font-bold uppercase tracking-wide transition" data-testid="leaderboard-link">
               <Trophy className="h-4 w-4 mr-2 text-[#FFD60A]" /> Leaderboard
             </Link>
+            {selectMode ? (
+              <Button
+                variant="outline"
+                onClick={exitSelectMode}
+                className="bg-transparent border-white/20 text-white hover:bg-white/5"
+                data-testid="select-mode-cancel"
+              >
+                <X className="h-4 w-4 mr-2" /> Done
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={enterSelectMode}
+                className="bg-transparent border-white/20 text-white hover:bg-white/5"
+                data-testid="select-mode-enter"
+              >
+                <CheckSquare className="h-4 w-4 mr-2" /> Select
+              </Button>
+            )}
             <Button onClick={() => { setEditing(null); setModalOpen(true); }} className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid="add-card-button">
               <Plus className="h-4 w-4 mr-2" /> Add Card
             </Button>
@@ -435,6 +482,9 @@ export default function Dashboard() {
                 onQuickSell={() => setQuickSellCard(c)}
                 onTagClick={(t) => setTagFilter(t)}
                 onShareChanged={bumpRefresh}
+                selectMode={selectMode}
+                selected={selectedIds.has(c.id)}
+                onToggleSelect={toggleSelect}
               />
             );
             const soldProfit = sold.reduce((acc, c) => acc + (Number(c.price_sold || 0) - Number(c.price_paid || 0) - Number(c.expenses || 0)), 0);
@@ -504,6 +554,35 @@ export default function Dashboard() {
       />
 
       <MobileBottomNav />
+
+      {/* Bulk-select floating action bar */}
+      {selectMode && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 bottom-20 md:bottom-6 z-40 w-[min(640px,92vw)] rounded-xl bg-[#141414]/95 backdrop-blur-xl border border-white/15 shadow-2xl px-4 py-3 flex items-center gap-3 fade-up"
+          data-testid="bulk-action-bar"
+        >
+          <div className="font-display text-base sm:text-lg font-black tracking-tight text-white">
+            <span data-testid="bulk-selected-count">{selectedIds.size}</span>
+            <span className="text-neutral-500 text-sm font-semibold ml-1.5">selected</span>
+          </div>
+          <button
+            onClick={selectedIds.size === cards.length ? () => setSelectedIds(new Set()) : selectAllVisible}
+            className="text-[11px] uppercase tracking-widest font-bold text-neutral-300 hover:text-white px-2 py-1 rounded transition"
+            data-testid="bulk-select-all"
+          >
+            {selectedIds.size === cards.length && cards.length > 0 ? "Clear" : "Select all"}
+          </button>
+          <div className="flex-1" />
+          <Button
+            onClick={onBulkDelete}
+            disabled={selectedIds.size === 0 || bulkDeleting}
+            className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide disabled:opacity-40"
+            data-testid="bulk-delete-button"
+          >
+            <Trash2 className="h-4 w-4 mr-2" /> {bulkDeleting ? "Deleting…" : "Delete"}
+          </Button>
+        </div>
+      )}
 
       <YearInReviewModal open={recapOpen} onClose={() => setRecapOpen(false)} />
     </div>

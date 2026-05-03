@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Pencil, Trash2, Image as ImageIcon, Zap, Tag as TagIcon, Share2, Copy, Eye, EyeOff, Award, ExternalLink } from "lucide-react";
+import { Pencil, Trash2, Image as ImageIcon, Zap, Tag as TagIcon, Share2, Copy, Eye, EyeOff, Award, ExternalLink, Check } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -12,7 +12,7 @@ import api from "../lib/api";
 import Lightbox from "./Lightbox";
 import { conditionLabel, CONDITION_IS_GRADED } from "../lib/conditions";
 
-export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, onTagClick, onShareChanged }) {
+export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, onTagClick, onShareChanged, selectMode = false, selected = false, onToggleSelect }) {
   const [urls, setUrls] = useState([]);
   const [lightbox, setLightbox] = useState(false);
   const [swipeX, setSwipeX] = useState(0);
@@ -48,9 +48,10 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
     const q = encodeURIComponent(`${card.year || ""} ${card.name || ""} ${(card.tags || []).slice(0, 3).join(" ")}`.trim());
     return `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1`;
   };
-  const wrapperClass = sold
+  const wrapperClass = (sold
     ? `card-tile rounded-lg overflow-hidden flex flex-col border-2 ${profitPositive ? "border-[#34C759]/40 bg-gradient-to-br from-[#34C759]/8 to-[#141414] shadow-glow-green" : "border-[#FF3B30]/40 bg-gradient-to-br from-[#FF3B30]/8 to-[#141414] shadow-glow-red"}`
-    : "card-tile rounded-lg overflow-hidden flex flex-col border border-l-4 border-l-[#007AFF]/70 border-white/10 bg-[#141414]";
+    : "card-tile rounded-lg overflow-hidden flex flex-col border border-l-4 border-l-[#007AFF]/70 border-white/10 bg-[#141414]"
+  ) + (selectMode && selected ? " ring-2 ring-[#FF3B30] ring-offset-2 ring-offset-[#0A0A0A]" : "") + (selectMode ? " cursor-pointer" : "");
 
   const copyShareLink = async () => {
     try {
@@ -107,9 +108,21 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
   };
 
   return (
-    <div className="relative" data-testid={`card-item-${card.id}`} data-status={card.status}>
+    <div className="relative" data-testid={`card-item-${card.id}`} data-status={card.status} data-selected={selected ? "1" : "0"}>
+      {/* Selection checkbox overlay (shown only in select mode) */}
+      {selectMode && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleSelect?.(card); }}
+          className={`absolute top-3 left-3 z-20 h-7 w-7 rounded-md grid place-items-center transition border-2 ${selected ? "bg-[#FF3B30] border-[#FF3B30] text-white" : "bg-black/70 border-white/40 text-transparent hover:border-white"}`}
+          aria-label={selected ? "Deselect card" : "Select card"}
+          data-testid={`card-select-${card.id}`}
+        >
+          <Check className="h-4 w-4" strokeWidth={3} />
+        </button>
+      )}
       {/* Swipe-reveal underlay (Quick Sell action) — desktop hidden, mobile shows behind tile */}
-      {swipable && swipeX < -8 && (
+      {swipable && !selectMode && swipeX < -8 && (
         <div className="absolute inset-y-0 right-0 w-28 bg-gradient-to-l from-[#34C759] to-[#34C759]/70 flex flex-col items-center justify-center text-black gap-1 rounded-r-lg pointer-events-none" data-testid={`card-swipe-action-${card.id}`}>
           <Zap className="h-6 w-6" strokeWidth={2.5} />
           <span className="text-[10px] font-black uppercase tracking-widest">Quick Sell</span>
@@ -117,14 +130,15 @@ export default function CollectionCard({ card, onEdit, onDelete, onQuickSell, on
       )}
       <div
         className={wrapperClass}
-        style={{ transform: `translateX(${swipeX}px)`, transition: swipeStart.current ? "none" : "transform 200ms ease-out" }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
+        style={{ transform: `translateX(${selectMode ? 0 : swipeX}px)`, transition: swipeStart.current ? "none" : "transform 200ms ease-out" }}
+        onClick={selectMode ? () => onToggleSelect?.(card) : undefined}
+        onTouchStart={selectMode ? undefined : onTouchStart}
+        onTouchMove={selectMode ? undefined : onTouchMove}
+        onTouchEnd={selectMode ? undefined : onTouchEnd}
       >
       <div
         className="aspect-[3/4] relative bg-gradient-to-br from-[#1a1a1a] to-[#0c0c0c] cursor-pointer overflow-hidden"
-        onClick={() => urls.length > 0 && setLightbox(true)}
+        onClick={() => { if (selectMode) return; if (urls.length > 0) setLightbox(true); }}
         data-testid={`card-image-${card.id}`}
       >
         {urls.length > 0 ? (

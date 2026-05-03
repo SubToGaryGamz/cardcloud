@@ -736,6 +736,32 @@ async def delete_card(card_id: str, user: User = Depends(get_current_user)):
     return {"ok": True}
 
 
+class BulkDeleteReq(BaseModel):
+    card_ids: List[str]
+
+
+@api_router.post("/cards/bulk-delete")
+async def bulk_delete_cards(req: BulkDeleteReq, user: User = Depends(get_current_user)):
+    """Delete multiple cards at once. Only deletes cards owned by the caller.
+    Returns the count of cards actually deleted (silently ignores missing/non-owned ids).
+    """
+    ids = [str(c) for c in (req.card_ids or []) if c]
+    if not ids:
+        raise HTTPException(status_code=400, detail="No card IDs provided")
+    if len(ids) > 500:
+        raise HTTPException(status_code=400, detail="Too many cards in one request (max 500)")
+    # Soft-delete attached image files for owned cards
+    owned = await db.cards.find(
+        {"id": {"$in": ids}, "user_id": user.user_id, "image_path": {"$exists": True, "$ne": None}},
+        {"_id": 0, "image_path": 1},
+    ).to_list(length=len(ids))
+    paths = [c["image_path"] for c in owned if c.get("image_path")]
+    if paths:
+        await db.files.update_many({"storage_path": {"$in": paths}}, {"$set": {"is_deleted": True}})
+    res = await db.cards.delete_many({"id": {"$in": ids}, "user_id": user.user_id})
+    return {"deleted": res.deleted_count}
+
+
 @api_router.post("/cards/scan-image")
 async def scan_card_image(file: UploadFile = File(...), user: User = Depends(get_current_user)):
     """Vision-LLM card-photo intake.
