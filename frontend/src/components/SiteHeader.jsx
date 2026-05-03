@@ -10,7 +10,7 @@ import api from "../lib/api";
 export default function SiteHeader() {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
-  const { isPro } = useBilling();
+  const { isPro, isAnnualPro } = useBilling();
   const nav = useNavigate();
   const location = useLocation();
   const [avatarUrl, setAvatarUrl] = useState(null);
@@ -53,11 +53,15 @@ export default function SiteHeader() {
             <Cloud className="h-5 w-5 text-white" strokeWidth={2.5} fill="white" fillOpacity={0.15} />
           </div>
           <span className="font-display text-xl tracking-tight font-black uppercase hidden sm:inline">CardCloud</span>
-          {isPro && (
+          {isAnnualPro ? (
+            <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-widest bg-gradient-to-r from-[#FFD60A] to-[#FF9500] text-black px-1.5 py-0.5 rounded-sm font-black ml-1" data-testid="pro-member-badge-header">
+              <Sparkles className="h-2.5 w-2.5" /> Pro Member
+            </span>
+          ) : isPro ? (
             <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-widest bg-gradient-to-r from-[#FFD60A]/20 to-[#FF9500]/20 border border-[#FFD60A]/40 text-[#FFCC00] px-1.5 py-0.5 rounded-sm font-black ml-1" data-testid="pro-badge-header">
               <Sparkles className="h-2.5 w-2.5" /> Pro
             </span>
-          )}
+          ) : null}
         </Link>
 
         <nav className="hidden md:flex items-center gap-1 sm:gap-2">

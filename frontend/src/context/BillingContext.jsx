@@ -2,11 +2,12 @@ import React, { useEffect, useState, useCallback } from "react";
 import api from "../lib/api";
 import { useAuth } from "./AuthContext";
 
-export const BillingContext = React.createContext({ isPro: false, refresh: () => {}, packages: {}, limits: {} });
+export const BillingContext = React.createContext({ isPro: false, isAnnualPro: false, refresh: () => {}, packages: {}, limits: {} });
 
 export function BillingProvider({ children }) {
   const { user } = useAuth();
   const [isPro, setIsPro] = useState(false);
+  const [isAnnualPro, setIsAnnualPro] = useState(false);
   const [proExpiresAt, setProExpiresAt] = useState(null);
   const [packages, setPackages] = useState({});
   const [limits, setLimits] = useState({});
@@ -15,6 +16,7 @@ export function BillingProvider({ children }) {
     try {
       const r = await api.get("/billing/me");
       setIsPro(!!r.data.is_pro);
+      setIsAnnualPro(!!r.data.is_annual_pro);
       setProExpiresAt(r.data.pro_expires_at || null);
       setPackages(r.data.packages || {});
       setLimits(r.data.limits || {});
@@ -23,11 +25,11 @@ export function BillingProvider({ children }) {
 
   useEffect(() => {
     if (user) refresh();
-    else { setIsPro(false); setProExpiresAt(null); setLimits({}); }
+    else { setIsPro(false); setIsAnnualPro(false); setProExpiresAt(null); setLimits({}); }
   }, [user, refresh]);
 
   return (
-    <BillingContext.Provider value={{ isPro, proExpiresAt, packages, limits, refresh }}>
+    <BillingContext.Provider value={{ isPro, isAnnualPro, proExpiresAt, packages, limits, refresh }}>
       {children}
     </BillingContext.Provider>
   );

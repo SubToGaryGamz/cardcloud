@@ -3,7 +3,7 @@ import api from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Download, X, TrendingUp, TrendingDown, Wallet, ShoppingBag, Receipt, Tag as TagIcon, FileText, Lock, Sparkles, CheckCircle2, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import CardFormModal from "../components/CardFormModal";
 import StatCard from "../components/StatCard";
@@ -14,6 +14,9 @@ import ImportCsvButton from "../components/ImportCsvButton";
 import SiteHeader from "../components/SiteHeader";
 import MobileBottomNav from "../components/MobileBottomNav";
 import BestFlipCard from "../components/BestFlipCard";
+import MonthlyGoalTile from "../components/MonthlyGoalTile";
+import YearInReviewModal from "../components/YearInReviewModal";
+import { Link } from "react-router-dom";
 import { SPORTS } from "../lib/sports";
 import { useBilling } from "../context/BillingContext";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -40,6 +43,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState("all");
   const [quickSellCard, setQuickSellCard] = useState(null);
+  const [recapOpen, setRecapOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadStats = async () => {
@@ -87,6 +91,20 @@ export default function Dashboard() {
     return () => clearTimeout(t);
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [q, statusFilter, yearFilter, sportFilter, tagFilter, refreshKey]);
+
+  // January auto-prompt for last year's recap (once per user per year via localStorage)
+  useEffect(() => {
+    const now = new Date();
+    if (now.getMonth() !== 0) return; // only January
+    const lastYear = now.getFullYear() - 1;
+    const seen = localStorage.getItem(`cv_recap_seen_${lastYear}`);
+    if (seen) return;
+    const t = setTimeout(() => {
+      setRecapOpen(true);
+      localStorage.setItem(`cv_recap_seen_${lastYear}`, "1");
+    }, 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   // Mobile bottom nav "+" → open Add Card modal (event from MobileBottomNav, or ?add=1 URL param)
   useEffect(() => {
@@ -269,6 +287,12 @@ export default function Dashboard() {
             <Button variant="outline" onClick={onTaxExport} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="tax-export-button">
               {isPro ? <FileText className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />} Tax 8949
             </Button>
+            <Button variant="outline" onClick={() => setRecapOpen(true)} className="bg-transparent border-white/20 text-white hover:bg-white/5" data-testid="year-recap-button">
+              <Sparkles className="h-4 w-4 mr-2 text-[#FFD60A]" /> My Recap
+            </Button>
+            <Link to="/leaderboard" className="inline-flex items-center justify-center px-4 h-10 rounded-md border border-white/20 text-white hover:bg-white/5 text-sm font-bold uppercase tracking-wide transition" data-testid="leaderboard-link">
+              <Trophy className="h-4 w-4 mr-2 text-[#FFD60A]" /> Leaderboard
+            </Link>
             <Button onClick={() => { setEditing(null); setModalOpen(true); }} className="bg-[#FF3B30] hover:bg-[#FF3B30]/90 text-white font-bold uppercase tracking-wide" data-testid="add-card-button">
               <Plus className="h-4 w-4 mr-2" /> Add Card
             </Button>
@@ -310,9 +334,10 @@ export default function Dashboard() {
 
         <Charts refreshKey={refreshKey} />
 
-        {/* Best Flip */}
-        <div className="mb-8">
+        {/* Best Flip + Monthly Goal side by side */}
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6" data-testid="best-flip-and-goal">
           <BestFlipCard since={range} refreshKey={refreshKey} />
+          <MonthlyGoalTile refreshKey={refreshKey} />
         </div>
 
         {/* Search & filters */}
@@ -479,6 +504,8 @@ export default function Dashboard() {
       />
 
       <MobileBottomNav />
+
+      <YearInReviewModal open={recapOpen} onClose={() => setRecapOpen(false)} />
     </div>
   );
 }

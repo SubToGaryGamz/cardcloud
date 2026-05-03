@@ -33,6 +33,14 @@ export default function Landing() {
   const [yearlyOn, setYearlyOn] = React.useState(true);
   const [betaDialog, setBetaDialog] = React.useState(null); // null | "pro_monthly" | "pro_yearly"
 
+  // Capture ?ref=CODE from URL so we can pass it to register later
+  React.useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref) localStorage.setItem("cv_referral", ref);
+    } catch {}
+  }, []);
+
   const proCtaClick = () => {
     if (!user) { navigate("/login"); return; }
     setBetaDialog(yearlyOn ? "pro_yearly" : "pro_monthly");

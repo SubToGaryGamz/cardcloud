@@ -125,6 +125,7 @@ class RegisterReq(BaseModel):
     email: EmailStr
     password: str
     name: str
+    referral_code: Optional[str] = None
 
 
 class LoginReq(BaseModel):
@@ -315,6 +316,12 @@ async def register(req: RegisterReq):
         raise HTTPException(status_code=400, detail="Email already registered")
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     pwd_hash = bcrypt.hashpw(req.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    referred_by = None
+    if req.referral_code:
+        rc = req.referral_code.strip().upper()
+        ref_owner = await db.users.find_one({"referral_code": rc}, {"_id": 0, "user_id": 1})
+        if ref_owner and ref_owner.get("user_id") != user_id:
+            referred_by = rc
     doc = {
         "user_id": user_id,
         "email": req.email.lower(),
@@ -322,6 +329,8 @@ async def register(req: RegisterReq):
         "picture": None,
         "auth_provider": "email",
         "password_hash": pwd_hash,
+        "referral_code": _ensure_referral_code({}),
+        "referred_by": referred_by,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
@@ -1001,6 +1010,15 @@ async def import_cards(file: UploadFile = File(...), user: User = Depends(get_cu
 
 
 # ============ User Profile ============
+@api_router.get("/users/me")
+async def get_me(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "password_hash": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    # Surface prefs the frontend needs (referral, leaderboard, public vault, etc.)
+    return doc
+
+
 @api_router.patch("/users/me", response_model=User)
 async def update_profile(payload: ProfileUpdate, user: User = Depends(get_current_user)):
     updates = {k: v for k, v in payload.model_dump().items() if v is not None and v != ""}
@@ -1228,6 +1246,248 @@ async def public_image(token: str, path: str):
         raise HTTPException(status_code=404, detail="Not found")
     data, content_type = get_object(path)
     return Response(content=data, media_type=record.get("content_type") or content_type)
+
+
+# ============ Leaderboard / Goals / Referrals ============
+import secrets as _secrets
+
+
+def _ensure_referral_code(user_doc: dict) -> str:
+    """Lazily generate a short 6-char referral code for the user (uppercase
+    alphanumeric, no I/O/0/1 to avoid confusion). Idempotent."""
+    if user_doc and user_doc.get("referral_code"):
+        return user_doc["referral_code"]
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(_secrets.choice(alphabet) for _ in range(6))
+
+
+def _leaderboard_handle(user_doc: dict) -> str:
+    """Public-facing identifier on the leaderboard.
+    If the user opted to reveal their real name, show it; otherwise show a stable anonymous handle.
+    """
+    if user_doc.get("leaderboard_show_name") and user_doc.get("name"):
+        return user_doc["name"]
+    h = user_doc.get("leaderboard_handle")
+    if h:
+        return h
+    # Stable fallback derived from user_id so anonymous handles don't shuffle each load
+    digits = "".join(c for c in str(user_doc.get("user_id") or "") if c.isdigit())
+    suffix = digits[-3:] if digits else (user_doc.get("user_id") or "?")[-3:]
+    return f"Flipper #{suffix}"
+
+
+def _profit_for_card(card: dict) -> float:
+    if card.get("status") != "sold":
+        return 0.0
+    try:
+        return float(card.get("price_sold") or 0) - float(card.get("price_paid") or 0) - float(card.get("expenses") or 0)
+    except Exception:
+        return 0.0
+
+
+@api_router.get("/leaderboard")
+async def leaderboard(metric: str = "profit", limit: int = 20):
+    """Public, no-auth leaderboard. metric ∈ {profit, cards}.
+    Returns relative ranks (1..N) and a normalized 0..1 bar value vs the leader,
+    so the frontend can display a progress bar without ever exposing dollar amounts.
+    """
+    if metric not in ("profit", "cards"):
+        raise HTTPException(status_code=400, detail="metric must be 'profit' or 'cards'")
+    if limit < 1 or limit > 100:
+        limit = 20
+
+    # Collect users who haven't opted out
+    users = await db.users.find(
+        {"$or": [{"leaderboard_opt_out": {"$ne": True}}, {"leaderboard_opt_out": {"$exists": False}}]},
+        {"_id": 0, "user_id": 1, "name": 1, "avatar_path": 1, "leaderboard_handle": 1, "leaderboard_show_name": 1, "is_pro": 1, "pro_expires_at": 1, "annual_pro": 1}
+    ).to_list(2000)
+
+    rows = []
+    for u in users:
+        uid = u.get("user_id")
+        if not uid:
+            continue
+        if metric == "cards":
+            n = await db.cards.count_documents({"user_id": uid})
+            score = float(n)
+        else:  # profit
+            cards = await db.cards.find(
+                {"user_id": uid, "status": "sold"},
+                {"_id": 0, "price_paid": 1, "price_sold": 1, "expenses": 1, "status": 1}
+            ).to_list(5000)
+            score = sum(_profit_for_card(c) for c in cards)
+        if score <= 0:
+            continue
+        is_pro_now = _user_is_pro(u)
+        rows.append({
+            "user_id": uid,
+            "handle": _leaderboard_handle(u),
+            "avatar_path": u.get("avatar_path"),
+            "is_pro": is_pro_now,
+            "is_annual_pro": bool(u.get("annual_pro")) and is_pro_now,
+            "score": score,
+        })
+
+    rows.sort(key=lambda r: r["score"], reverse=True)
+    rows = rows[:limit]
+    leader = rows[0]["score"] if rows else 0.0
+    out = []
+    for i, r in enumerate(rows):
+        bar = (r["score"] / leader) if leader > 0 else 0.0
+        out.append({
+            "rank": i + 1,
+            "handle": r["handle"],
+            "avatar_path": r["avatar_path"],
+            "is_pro": r["is_pro"],
+            "is_annual_pro": r["is_annual_pro"],
+            "bar": round(bar, 4),  # 0..1 for progress bar; never reveals raw $
+            "card_count": int(r["score"]) if metric == "cards" else None,
+        })
+    return {"metric": metric, "rows": out}
+
+
+class LeaderboardPrefsReq(BaseModel):
+    leaderboard_opt_out: Optional[bool] = None
+    leaderboard_show_name: Optional[bool] = None
+    leaderboard_handle: Optional[str] = None  # allow user to set their own anon handle
+
+
+@api_router.put("/me/leaderboard-prefs")
+async def update_leaderboard_prefs(req: LeaderboardPrefsReq, user: User = Depends(get_current_user)):
+    updates = {}
+    if req.leaderboard_opt_out is not None:
+        updates["leaderboard_opt_out"] = bool(req.leaderboard_opt_out)
+    if req.leaderboard_show_name is not None:
+        updates["leaderboard_show_name"] = bool(req.leaderboard_show_name)
+    if req.leaderboard_handle is not None:
+        h = req.leaderboard_handle.strip()[:24]
+        if h and not all(c.isalnum() or c in " _-" for c in h):
+            raise HTTPException(status_code=400, detail="Handle: letters, numbers, space, _ or - only")
+        updates["leaderboard_handle"] = h or None
+    if not updates:
+        raise HTTPException(status_code=400, detail="No changes")
+    await db.users.update_one({"user_id": user.user_id}, {"$set": updates})
+    return {"ok": True, **updates}
+
+
+class GoalReq(BaseModel):
+    monthly_profit_goal: Optional[float] = None  # null disables
+
+
+@api_router.put("/me/goal")
+async def set_monthly_goal(req: GoalReq, user: User = Depends(get_current_user)):
+    val = req.monthly_profit_goal
+    if val is not None and (val < 0 or val > 1_000_000):
+        raise HTTPException(status_code=400, detail="Goal must be between 0 and 1,000,000")
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"monthly_profit_goal": val}})
+    return {"ok": True, "monthly_profit_goal": val}
+
+
+@api_router.get("/me/monthly-progress")
+async def monthly_progress(user: User = Depends(get_current_user)):
+    """Returns this calendar month's profit + the user's target, so the
+    Dashboard can render a progress bar."""
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "monthly_profit_goal": 1})
+    goal = doc.get("monthly_profit_goal") if doc else None
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    cards = await db.cards.find(
+        {"user_id": user.user_id, "status": "sold"},
+        {"_id": 0, "price_paid": 1, "price_sold": 1, "expenses": 1, "sold_date": 1, "status": 1}
+    ).to_list(5000)
+    profit = 0.0
+    flips = 0
+    for c in cards:
+        d = c.get("sold_date") or ""
+        try:
+            dt = datetime.fromisoformat(d.replace("Z", "+00:00")) if d else None
+            if dt and dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            dt = None
+        if dt and dt >= month_start:
+            profit += _profit_for_card(c)
+            flips += 1
+    return {
+        "month": month_start.strftime("%B %Y"),
+        "month_iso": month_start.date().isoformat(),
+        "profit": round(profit, 2),
+        "flips": flips,
+        "goal": goal,
+        "pct": round((profit / goal) if (goal and goal > 0) else 0.0, 4),
+    }
+
+
+@api_router.get("/me/year-recap")
+async def year_recap(year: Optional[int] = None, user: User = Depends(get_current_user)):
+    """All the numbers needed for the shareable Year-in-Review card."""
+    if not year:
+        year = datetime.now(timezone.utc).year
+    if year < 2000 or year > 2100:
+        raise HTTPException(status_code=400, detail="invalid year")
+    cards = await db.cards.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "name": 1, "year": 1, "sport": 1, "price_paid": 1, "price_sold": 1,
+         "expenses": 1, "sold_date": 1, "purchased_date": 1, "status": 1, "image_path": 1}
+    ).to_list(5000)
+
+    def _in_year(s):
+        try:
+            return s and int(s[:4]) == year
+        except Exception:
+            return False
+
+    sold_this_year = [c for c in cards if c.get("status") == "sold" and _in_year(c.get("sold_date") or "")]
+    bought_this_year = [c for c in cards if _in_year(c.get("purchased_date") or "")]
+    total_profit = sum(_profit_for_card(c) for c in sold_this_year)
+    flips = len(sold_this_year)
+    spend = sum(float(c.get("price_paid") or 0) for c in bought_this_year)
+    cards_added = len(bought_this_year)
+
+    best = None
+    for c in sold_this_year:
+        p = _profit_for_card(c)
+        if best is None or p > _profit_for_card(best):
+            best = c
+
+    sport_counts = {}
+    for c in cards:
+        s = c.get("sport") or "Other"
+        sport_counts[s] = sport_counts.get(s, 0) + 1
+    top_sport = max(sport_counts.items(), key=lambda x: x[1])[0] if sport_counts else None
+
+    return {
+        "year": year,
+        "total_profit": round(total_profit, 2),
+        "flips": flips,
+        "cards_added": cards_added,
+        "spend": round(spend, 2),
+        "best_flip": ({
+            "name": best.get("name"),
+            "year": best.get("year"),
+            "profit": round(_profit_for_card(best), 2),
+            "image_path": best.get("image_path"),
+        } if best else None),
+        "top_sport": top_sport,
+    }
+
+
+@api_router.get("/me/referral")
+async def get_referral(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    code = _ensure_referral_code(doc)
+    if not (doc and doc.get("referral_code")):
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"referral_code": code}})
+    referred_count = await db.users.count_documents({"referred_by": code})
+    return {
+        "code": code,
+        "referred_count": referred_count,
+        "share_url": f"/?ref={code}",
+        "rewards_given_months": (doc.get("referral_rewards_given") if doc else 0) or 0,
+    }
+
+
+# ============ End leaderboard/goals/referrals ============
 
 
 # ============ AI Price Estimation (REMOVED) ============
@@ -1491,10 +1751,45 @@ async def billing_status(session_id: str, http_request: Request, user: User = De
         if first_time and pkg.get("interval") == "monthly":
             days += TRIAL_DAYS
         new_exp = base + timedelta(days=days)
+        is_annual = pkg.get("interval") == "yearly"
         await db.users.update_one(
             {"user_id": user.user_id},
-            {"$set": {"is_pro": True, "pro_expires_at": new_exp.isoformat(), "ever_pro": True}}
+            {"$set": {
+                "is_pro": True,
+                "pro_expires_at": new_exp.isoformat(),
+                "ever_pro": True,
+                "annual_pro": is_annual or bool(existing and existing.get("annual_pro")),
+            }}
         )
+        # Referral reward: when a referred user converts to Pro for the first
+        # time, grant the referrer +30 days. Only fires once per referee.
+        if first_time and existing and existing.get("referred_by") and not existing.get("referral_reward_given"):
+            ref_code = existing["referred_by"]
+            ref_owner = await db.users.find_one({"referral_code": ref_code}, {"_id": 0})
+            if ref_owner:
+                ref_base = datetime.now(timezone.utc)
+                if ref_owner.get("pro_expires_at"):
+                    try:
+                        cur = datetime.fromisoformat(ref_owner["pro_expires_at"])
+                        if cur.tzinfo is None:
+                            cur = cur.replace(tzinfo=timezone.utc)
+                        if cur > ref_base:
+                            ref_base = cur
+                    except Exception:
+                        pass
+                await db.users.update_one(
+                    {"user_id": ref_owner["user_id"]},
+                    {"$set": {
+                        "is_pro": True,
+                        "pro_expires_at": (ref_base + timedelta(days=30)).isoformat(),
+                        "ever_pro": True,
+                    },
+                     "$inc": {"referral_rewards_given": 1}},
+                )
+            await db.users.update_one(
+                {"user_id": user.user_id},
+                {"$set": {"referral_reward_given": True}},
+            )
     return {"payment_status": new_status, "status": status.status, "is_pro": new_status == "paid"}
 
 
@@ -1551,6 +1846,7 @@ async def billing_me(user: User = Depends(get_current_user)):
     is_pro = _user_is_pro(doc)
     return {
         "is_pro": is_pro,
+        "is_annual_pro": bool(doc and doc.get("annual_pro")) and is_pro,
         "pro_expires_at": doc.get("pro_expires_at") if doc else None,
         "packages": PACKAGES,
         "limits": {

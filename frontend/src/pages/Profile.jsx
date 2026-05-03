@@ -7,7 +7,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
-import { Upload, Save, User as UserIcon, Share2, Copy, ExternalLink, Sparkles, CheckCircle2 } from "lucide-react";
+import { Upload, Save, User as UserIcon, Share2, Copy, ExternalLink, Sparkles, CheckCircle2, Trophy, Gift, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useBilling } from "../context/BillingContext";
@@ -15,16 +15,46 @@ import { isNativePlatform } from "../lib/platform";
 
 export default function Profile() {
   const { user, refresh } = useAuth();
-  const { isPro, proExpiresAt, packages, refresh: refreshBilling } = useBilling();
+  const { isPro, isAnnualPro, proExpiresAt, packages, refresh: refreshBilling } = useBilling();
   const [name, setName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
+  const [referral, setReferral] = useState(null);
+  const [lbPrefs, setLbPrefs] = useState({ leaderboard_opt_out: false, leaderboard_show_name: false, leaderboard_handle: "" });
   const fileRef = useRef(null);
 
   useEffect(() => { if (user?.name) setName(user.name); }, [user?.name]);
   useEffect(() => { refreshBilling(); }, [refreshBilling]);
+  useEffect(() => {
+    let alive = true;
+    api.get("/me/referral").then((r) => { if (alive) setReferral(r.data); }).catch(() => {});
+    api.get("/users/me").then((r) => {
+      if (!alive) return;
+      const u = r.data || {};
+      setLbPrefs({
+        leaderboard_opt_out: !!u.leaderboard_opt_out,
+        leaderboard_show_name: !!u.leaderboard_show_name,
+        leaderboard_handle: u.leaderboard_handle || "",
+      });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const saveLbPrefs = async (patch) => {
+    const next = { ...lbPrefs, ...patch };
+    setLbPrefs(next);
+    try { await api.put("/me/leaderboard-prefs", patch); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Couldn't save"); }
+  };
+
+  const copyReferralLink = async () => {
+    if (!referral?.code) return;
+    const url = `${window.location.origin}/?ref=${referral.code}`;
+    try { await navigator.clipboard.writeText(url); toast.success("Referral link copied"); }
+    catch { toast.error("Copy failed"); }
+  };
 
   useEffect(() => {
     let revoked = false;
@@ -170,6 +200,110 @@ export default function Profile() {
               </Button>
             </div>
           </form>
+        </div>
+
+        {/* Referral */}
+        <div className="rounded-lg bg-gradient-to-br from-[#34C759]/8 via-[#141414] to-[#141414] border border-[#34C759]/30 p-6 sm:p-8 mt-6 fade-up" data-testid="referral-card">
+          <div className="flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-[#34C759] font-semibold">
+            <Gift className="h-3.5 w-3.5" /> Refer a friend
+          </div>
+          <h3 className="font-display text-2xl sm:text-3xl tracking-tighter font-black uppercase mt-1">Give 1 month, get 1 month</h3>
+          <p className="text-neutral-400 text-sm mt-1">Share your link. When someone you refer subscribes for the first time, you both get +30 days of Pro automatically.</p>
+
+          <div className="mt-5 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold mb-1">Your link</div>
+              <input
+                readOnly
+                value={referral ? `${window.location.origin}/?ref=${referral.code}` : "Loading…"}
+                className="w-full bg-[#0A0A0A] border border-white/10 rounded-md px-3 py-2 text-xs text-white font-mono"
+                onFocus={(e) => e.target.select()}
+                data-testid="referral-link-input"
+              />
+            </div>
+            <Button
+              onClick={copyReferralLink}
+              className="bg-[#34C759] hover:bg-[#34C759]/90 text-black font-bold uppercase tracking-wide shrink-0"
+              data-testid="referral-copy-button"
+            >
+              <Copy className="h-4 w-4 mr-2" /> Copy
+            </Button>
+          </div>
+          {referral && (
+            <div className="mt-4 grid grid-cols-2 gap-3 text-center">
+              <div className="rounded-md bg-black/30 border border-white/5 p-3">
+                <div className="font-display text-2xl tracking-tighter font-black text-white">{referral.referred_count}</div>
+                <div className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold">Friends joined</div>
+              </div>
+              <div className="rounded-md bg-black/30 border border-white/5 p-3">
+                <div className="font-display text-2xl tracking-tighter font-black text-[#34C759]">+{referral.rewards_given_months * 30}<span className="text-base text-neutral-500"> days</span></div>
+                <div className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold">Rewards earned</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Leaderboard preferences */}
+        <div className="rounded-lg bg-[#141414] border border-white/10 p-6 sm:p-8 mt-6 fade-up" data-testid="leaderboard-prefs-card">
+          <div className="flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-neutral-500 font-semibold">
+            <Trophy className="h-3.5 w-3.5" /> Leaderboard preferences
+          </div>
+          <h3 className="font-display text-xl tracking-tighter font-black uppercase mt-1">How you appear</h3>
+          <p className="text-neutral-400 text-sm mt-1">By default you show up as an anonymous handle. Profit values are never exposed — only your relative rank tier.</p>
+
+          <div className="mt-5 space-y-3">
+            <label className="flex items-center justify-between gap-4 p-3 rounded-md border border-white/10 cursor-pointer hover:bg-white/[0.02] transition">
+              <span className="text-sm">
+                <span className="text-white font-semibold">Hide me</span>
+                <span className="block text-xs text-neutral-500">Don't include me on the public leaderboard at all.</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={!!lbPrefs.leaderboard_opt_out}
+                onChange={(e) => saveLbPrefs({ leaderboard_opt_out: e.target.checked })}
+                className="h-4 w-4 accent-[#FF3B30]"
+                data-testid="lb-opt-out"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 p-3 rounded-md border border-white/10 cursor-pointer hover:bg-white/[0.02] transition">
+              <span className="text-sm">
+                <span className="text-white font-semibold">Show my real name</span>
+                <span className="block text-xs text-neutral-500">Replace your anonymous handle with your display name.</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={!!lbPrefs.leaderboard_show_name}
+                onChange={(e) => saveLbPrefs({ leaderboard_show_name: e.target.checked })}
+                disabled={!!lbPrefs.leaderboard_opt_out}
+                className="h-4 w-4 accent-[#FF3B30] disabled:opacity-40"
+                data-testid="lb-show-name"
+              />
+            </label>
+            <div className="p-3 rounded-md border border-white/10">
+              <div className="text-sm text-white font-semibold">Custom handle (optional)</div>
+              <p className="text-xs text-neutral-500 mt-0.5">Set your own anonymous handle. Letters, numbers, space, _ or - only · 24 chars max.</p>
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={lbPrefs.leaderboard_handle || ""}
+                  onChange={(e) => setLbPrefs({ ...lbPrefs, leaderboard_handle: e.target.value })}
+                  placeholder="e.g. SilverSlab"
+                  maxLength={24}
+                  disabled={!!lbPrefs.leaderboard_opt_out}
+                  className="flex-1 bg-[#0A0A0A] border border-white/10 rounded-md px-3 py-2 text-sm text-white outline-none focus:border-[#FF3B30]/50 disabled:opacity-40"
+                  data-testid="lb-handle-input"
+                />
+                <Button
+                  onClick={() => saveLbPrefs({ leaderboard_handle: lbPrefs.leaderboard_handle })}
+                  disabled={!!lbPrefs.leaderboard_opt_out}
+                  variant="outline"
+                  className="bg-transparent border-white/15 text-white hover:bg-white/5"
+                  data-testid="lb-handle-save"
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Public Vault Showcase */}

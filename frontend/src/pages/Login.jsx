@@ -42,7 +42,15 @@ export default function Login() {
     e.preventDefault();
     setBusy(true);
     try {
-      const r = await api.post("/auth/register", { email: regEmail, password: regPwd, name: regName });
+      const referralCode = (() => {
+        try {
+          const fromUrl = new URLSearchParams(window.location.search).get("ref");
+          if (fromUrl) localStorage.setItem("cv_referral", fromUrl);
+          return fromUrl || localStorage.getItem("cv_referral") || undefined;
+        } catch { return undefined; }
+      })();
+      const r = await api.post("/auth/register", { email: regEmail, password: regPwd, name: regName, referral_code: referralCode });
+      try { localStorage.removeItem("cv_referral"); } catch {}
       setToken(r.data.token, r.data.user);
       toast.success("Account created");
       navigate("/dashboard");
