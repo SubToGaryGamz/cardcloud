@@ -16,7 +16,7 @@ import MobileBottomNav from "../components/MobileBottomNav";
 import BestFlipCard from "../components/BestFlipCard";
 import MonthlyGoalTile from "../components/MonthlyGoalTile";
 import YearInReviewModal from "../components/YearInReviewModal";
-import { Upload } from "lucide-react";
+import { Upload, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { SPORTS } from "../lib/sports";
 import { useBilling } from "../context/BillingContext";
@@ -391,6 +391,10 @@ export default function Dashboard() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/leaderboard")} data-testid="menu-leaderboard" className="cursor-pointer">
                   <Trophy className="h-4 w-4 mr-2 text-[#FFD60A]" /> Leaderboard
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem onClick={() => navigate("/contact")} data-testid="menu-contact" className="cursor-pointer">
+                  <MessageCircle className="h-4 w-4 mr-2 text-neutral-300" /> Contact &amp; feedback
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

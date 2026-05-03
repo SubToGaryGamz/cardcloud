@@ -1717,6 +1717,131 @@ async def admin_overview(user: User = Depends(require_admin)):
 # ============ End admin analytics ============
 
 
+# ============ Contact / Feedback ============
+class ContactReq(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    category: str  # "feature" | "bug" | "support" | "other"
+    subject: str = Field(min_length=2, max_length=160)
+    message: str = Field(min_length=5, max_length=4000)
+
+
+_VALID_CONTACT_CATEGORIES = {"feature", "bug", "support", "other"}
+_CONTACT_CATEGORY_LABELS = {
+    "feature": "Feature request",
+    "bug": "Bug report",
+    "support": "Support",
+    "other": "Other",
+}
+
+
+async def _send_contact_email(entry: dict) -> Optional[str]:
+    """Delivers the contact form to CONTACT_EMAIL via Resend. Returns Resend id or None on failure.
+    Email send failure does NOT block the endpoint — the message is always stored in Mongo."""
+    api_key = os.environ.get("RESEND_API_KEY")
+    to_email = os.environ.get("CONTACT_EMAIL")
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    if not api_key or not to_email:
+        logger.warning("Resend not configured (RESEND_API_KEY/CONTACT_EMAIL); email not sent")
+        return None
+    try:
+        import resend as _resend
+        _resend.api_key = api_key
+        import asyncio as _asyncio
+        cat_label = _CONTACT_CATEGORY_LABELS.get(entry["category"], "Contact")
+        safe_msg = (entry["message"] or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+        html = f"""
+        <div style=\"font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0A0A0A;color:#fff\">
+          <div style=\"display:inline-block;padding:4px 10px;background:#FF3B30;color:#fff;font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;border-radius:4px\">CardCloud · {cat_label}</div>
+          <h1 style=\"font-size:22px;margin:16px 0 8px 0\">{entry['subject']}</h1>
+          <p style=\"color:#aaa;margin:0 0 16px 0;font-size:13px\">
+            From <strong style=\"color:#fff\">{entry['name']}</strong>
+            &lt;<a href=\"mailto:{entry['email']}\" style=\"color:#4aa3ff\">{entry['email']}</a>&gt;
+          </p>
+          <div style=\"padding:16px;background:#141414;border:1px solid rgba(255,255,255,0.1);border-radius:8px;white-space:pre-wrap;line-height:1.5;font-size:14px\">{safe_msg}</div>
+          <p style=\"color:#666;margin:20px 0 0 0;font-size:11px\">Submitted {entry['created_at']} · IP {entry.get('ip') or '—'} · User {entry.get('user_email') or 'anonymous'}</p>
+        </div>
+        """
+        params = {
+            "from": sender,
+            "to": [to_email],
+            "reply_to": entry["email"],
+            "subject": f"[CardCloud · {cat_label}] {entry['subject']}",
+            "html": html,
+        }
+        res = await _asyncio.to_thread(_resend.Emails.send, params)
+        return (res or {}).get("id")
+    except Exception as e:
+        logger.error(f"Contact email send failed: {e}")
+        return None
+
+
+@api_router.post("/contact")
+async def contact_submit(req: ContactReq, request: Request):
+    cat = (req.category or "").lower().strip()
+    if cat not in _VALID_CONTACT_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Invalid category")
+
+    # Rate limit: 3 submissions / 10 min per IP
+    client_ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() or (request.client.host if request.client else "")
+    if client_ip:
+        ten_min_ago = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+        recent = await db.contact_messages.count_documents({"ip": client_ip, "created_at": {"$gte": ten_min_ago}})
+        if recent >= 3:
+            raise HTTPException(status_code=429, detail="Too many submissions — please wait a few minutes and try again.")
+
+    # Try to attach authenticated user, but don't require auth
+    user_email = None
+    user_id = None
+    try:
+        auth = request.headers.get("authorization")
+        if auth and auth.startswith("Bearer "):
+            token = auth.split(" ", 1)[1].strip()
+            try:
+                payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+                user_id = payload.get("sub")
+            except jwt.PyJWTError:
+                sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+                if sess:
+                    user_id = sess.get("user_id")
+            if user_id:
+                u = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
+                if u:
+                    user_email = u.get("email")
+    except Exception:
+        pass
+
+    entry = {
+        "id": str(uuid.uuid4()),
+        "name": req.name.strip(),
+        "email": req.email.lower().strip(),
+        "category": cat,
+        "subject": req.subject.strip(),
+        "message": req.message.strip(),
+        "ip": client_ip or None,
+        "user_id": user_id,
+        "user_email": user_email,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "email_sent_id": None,
+    }
+    await db.contact_messages.insert_one(dict(entry))  # copy: Mongo mutates the dict with _id
+    sent_id = await _send_contact_email(entry)
+    if sent_id:
+        await db.contact_messages.update_one({"id": entry["id"]}, {"$set": {"email_sent_id": sent_id}})
+    return {"ok": True, "id": entry["id"], "email_sent": bool(sent_id)}
+
+
+@api_router.get("/admin/contact-messages")
+async def admin_contact_messages(limit: int = 50, user: User = Depends(require_admin)):
+    """List recent contact-form submissions (admin only)."""
+    limit = max(1, min(limit, 500))
+    rows = await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(length=limit)
+    return {"rows": rows}
+
+
+# ============ End contact ============
+
+
 # ============ AI Price Estimation (REMOVED) ============
 # The /watchlist/{item_id}/estimate endpoint was removed in favor of pure
 # eBay sold-comp links. No external LLM calls are made for price guesses.

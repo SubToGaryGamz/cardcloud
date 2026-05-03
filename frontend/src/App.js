@@ -18,6 +18,7 @@ import Terms from "./pages/Terms";
 import CsvImportHelp from "./pages/CsvImportHelp";
 import Leaderboard from "./pages/Leaderboard";
 import Admin from "./pages/Admin";
+import Contact from "./pages/Contact";
 import { Toaster } from "./components/ui/sonner";
 
 function ProtectedRoute({ children }) {
@@ -53,6 +54,7 @@ function AppRouter() {
       <Route path="/terms" element={<Terms />} />
       <Route path="/help/csv-import" element={<CsvImportHelp />} />
       <Route path="/leaderboard" element={<Leaderboard />} />
+      <Route path="/contact" element={<Contact />} />
       <Route path="/s/c/:token" element={<PublicCard />} />
       <Route path="/s/v/:token" element={<PublicVault />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />

@@ -440,6 +440,7 @@ export default function Landing() {
           <div className="flex items-center gap-5 text-xs uppercase tracking-widest">
             <Link to="/privacy" className="hover:text-white transition" data-testid="footer-privacy-link">Privacy</Link>
             <Link to="/terms" className="hover:text-white transition" data-testid="footer-terms-link">Terms</Link>
+            <Link to="/contact" className="hover:text-white transition" data-testid="footer-contact-link">Contact</Link>
             <span className="hidden sm:inline">Track every flip · Win every flex</span>
           </div>
         </div>
